@@ -350,7 +350,7 @@ To keep everything offline we stage the same situation with digits:
 * **Source task (lots of data):** classify digits 0 to 4, using all their training images.
 * **Target task (very little data):** classify digits 5 to 9, with only $k$ labelled images per class.
 
-Strokes, loops and corners are shared between the two halves, so features learned on 0-4 should help on 5-9. We compare three strategies:
+Strokes, loops and corners are shared between the two halves, so features learned on 0-4 *should* help on 5-9. Whether they actually do depends on how the source network was trained, so we train it twice: once plainly, and once with the random-shift augmentation from section 5. For each source network we compare three strategies:
 
 | Strategy | What is trained on the target task |
 |---|---|
@@ -372,11 +372,13 @@ class SmallCNN5(SmallCNN):
         self.fc1, self.fc2 = nn.Linear(32 * 4 * 4, 64), nn.Linear(64, 5)
         return list(self.fc1.parameters()) + list(self.fc2.parameters())
 
-torch.manual_seed(0); np.random.seed(0)
-source_net = SmallCNN5()
-h = fit(source_net, Xtr[src_tr], ytr[src_tr], Xte[src_te], yte[src_te], epochs=30, augment=random_shift)
-print(f"source network (digits 0-4, trained with augmentation): test accuracy {h[-1]:.1%}")
-source_state = {k: v.clone() for k, v in source_net.state_dict().items()}
+sources = {}
+for name, aug in [("plain source", None), ("augmented source", random_shift)]:
+    torch.manual_seed(0); np.random.seed(0)
+    net = SmallCNN5()
+    h = fit(net, Xtr[src_tr], ytr[src_tr], Xte[src_te], yte[src_te], epochs=30, augment=aug)
+    sources[name] = {k: v.clone() for k, v in net.state_dict().items()}
+    print(f"{name:17s} (digits 0-4): test accuracy {h[-1]:.1%}")
 
 def few_shot_split(k, seed):
     g = np.random.default_rng(seed)
@@ -387,13 +389,13 @@ def few_shot_split(k, seed):
     idx = torch.tensor(idx)
     return Xtr[idx], ytr[idx] - 5
 
-def run(strategy, k, seed):
+def run(strategy, k, seed, source=None):
     torch.manual_seed(seed)
     m = SmallCNN5()
     Xk, yk = few_shot_split(k, seed)
     if strategy == "from scratch":
         return fit(m, Xk, yk, Xt_te, yt_te, epochs=60, lr=3e-3, batch=16)[-1]
-    m.load_state_dict(source_state)
+    m.load_state_dict(sources[source])
     head = m.new_head()                                   # the old head only knew digits 0-4
     if strategy == "frozen features":
         for p in list(m.conv1.parameters()) + list(m.conv2.parameters()):
@@ -402,24 +404,35 @@ def run(strategy, k, seed):
     return fit(m, Xk, yk, Xt_te, yt_te, epochs=60, lr=1e-3, batch=16)[-1]   # fine-tuning: smaller learning rate
 
 ks = [1, 2, 5, 10, 25]
-strategies = ["from scratch", "frozen features", "fine-tuning"]
-results = {s: [np.mean([run(s, k, seed) for seed in range(5)]) for k in ks] for s in strategies}
+runs = [("from scratch", None)] + [(s, src) for src in sources for s in ["frozen features", "fine-tuning"]]
+t0 = time.time()
+results = {}
+for s, src in runs:
+    label = s if src is None else f"{s}, {src}"
+    results[label] = [np.mean([run(s, k, seed, src) for seed in range(5)]) for k in ks]
+print(f"\n{len(runs) * len(ks) * 5} target-task trainings in {time.time() - t0:.0f}s\n")
 
-print(f"\n{'error rate on digits 5-9':26s}" + "".join(f"{f'k={k}':>8s}" for k in ks))
-for s in strategies:
-    print(f"{s:26s}" + "".join(f"{1 - a:8.1%}" for a in results[s]))
-plt.figure(figsize=(8, 4))
-for s in strategies:
-    plt.plot(ks, [1 - a for a in results[s]], marker="o", label=s)
+print(f"{'error rate on digits 5-9':36s}" + "".join(f"{f'k={k}':>8s}" for k in ks))
+for label, acc in results.items():
+    print(f"{label:36s}" + "".join(f"{1 - a:8.1%}" for a in acc))
+plt.figure(figsize=(9, 4.5))
+for label, acc in results.items():
+    style = dict(color="k", lw=2) if label == "from scratch" else dict(ls="--" if "plain" in label else "-")
+    plt.plot(ks, [1 - a for a in acc], marker="o", label=label, **style)
 plt.xscale("log"); plt.yscale("log"); plt.xticks(ks, ks); plt.xlabel("labelled images per class (target task)"); plt.ylabel("test error rate")
-plt.title("Transfer learning (mean of 5 random draws, lower is better)"); plt.legend(); plt.grid(alpha=0.3); plt.show()
+plt.title("Transfer learning: dashed = plain source, solid = augmented source (mean of 5 draws, lower is better)", fontsize=10)
+plt.legend(fontsize=8); plt.grid(alpha=0.3); plt.show()
 """)
 
 md(r"""
-Reusing the source features cuts the error at every data size; with 5 examples per class it is roughly halved. Two honest caveats about this toy setup:
+The dashed lines are the uncomfortable part of the result. Features from the **plain** source network help a little with one to five examples per class, but by 10 examples they are no better than training from scratch, and by 25 they are *worse*: they are specialised to the exact, centred digits 0-4 they were trained on, and starting from them gets in the way once the target task has enough data of its own. Frozen features from the **augmented** source network beat training from scratch at every data size, and with 5 examples per class they roughly halve the error.
 
-* A CNN on 8×8 digits is already a strong learner from scratch (its inductive bias does a lot of work), so the gap is moderate. With real photos and a network pre-trained on millions of images, the gap is usually much larger.
-* We pre-trained the source network **with augmentation**. Without it, the source features are more specialised to digits 0-4 and transfer noticeably worse (try it). General features transfer, specialised ones do not.
+Notice the twist in the first two printed lines: the augmented source network is *worse* at its own task (it gave up accuracy on perfectly centred test digits, as in section 5), yet it is the better starting point for a new one. Same architecture, same source data, same target task: augmentation forced the source network to learn features that are not tied to one exact position, and general features are the ones that transfer. A model's score on its original task is a poor guide to how useful its features are elsewhere.
+
+Two more honest caveats about this toy setup:
+
+* A CNN on 8×8 digits is already a strong learner from scratch (its inductive bias does a lot of work), so even the good gap is moderate. With real photos and a network pre-trained on millions of varied images, the gap is usually much larger.
+* Pre-trained models used in practice are trained with heavy augmentation on huge, diverse datasets, which is exactly why their features transfer so well. "Transfer learning works" is really a claim about *how the source model was trained*.
 
 Rules of thumb that carry over to real projects:
 
@@ -478,7 +491,7 @@ The separable network uses several times fewer convolution weights for a small d
 2. Increase the depth to 40 convolutions (`n_blocks=20`). What happens to each network?
 3. In section 5, add random rotations of ±15° as augmentation (hint: `torch.rot90` only does 90°; try `torch.nn.functional.affine_grid`). Does it help on the original, unshifted test set?
 4. Transfer in the other direction: pre-train on 5-9 and adapt to 0-4. Is the benefit symmetric?
-5. Pre-train the source network *without* augmentation and repeat section 7. How much of the transfer benefit is left?
+5. Train the source network on digits 0-4 for 5 epochs instead of 30 (with augmentation). Do undertrained source features transfer better or worse than fully trained ones?
 6. Fine-tune with a learning rate of 1e-2. What happens with 2 examples per class, and why?
 """)
 
