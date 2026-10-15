@@ -1,0 +1,59 @@
+# Builds the Neural Networks 1001 course website from the executed notebooks and publishes it.
+#
+# The static site is copied into the portfolio site repository under academy/neural-networks/,
+# whose own webhook deploys it to the web server (served at neural-networks.academy.forwardforecasting.eu).
+#
+# Required GitHub secret:
+#   GH_PAT: personal access token with write access to fborbon/forwardforecasting-landing
+
+name: Deploy Neural Networks 1001 site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'neural-networks/*.ipynb'
+      - 'neural-networks/site/**'
+      - '.github/workflows/deploy-neural-networks.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-neural-networks
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build site (renders the saved notebook outputs; nothing is re-executed)
+        run: |
+          pip install --quiet "nbconvert>=7" "nbformat>=5" "pygments>=2.17"
+          python neural-networks/site/build_site.py
+
+      - uses: actions/checkout@v4
+        with:
+          repository: fborbon/forwardforecasting-landing
+          token: ${{ secrets.GH_PAT }}
+          path: landing
+
+      - name: Copy site into the portfolio repository
+        run: |
+          mkdir -p landing/academy/neural-networks
+          rsync -a --delete neural-networks/site/dist/ landing/academy/neural-networks/
+
+      - name: Commit and push
+        run: |
+          cd landing
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add academy/neural-networks
+          git diff --cached --quiet && echo "No changes" && exit 0
+          git commit -m "sync: Neural Networks 1001 course site from academy repo"
+          for i in 1 2 3; do git pull --rebase && git push && exit 0; sleep 5; done
+          exit 1

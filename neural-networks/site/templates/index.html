@@ -1,0 +1,71 @@
+  <main class="landing">
+    <section class="hero">
+      <div class="hero-text">
+        <p class="eyebrow">Free course · ${n_modules} hands-on notebooks · no GPU needed</p>
+        <h1>Neural Networks <span>1001</span></h1>
+        <p class="lead">From a single artificial neuron to a GPT you train yourself. Every idea is built from first principles in code you can read, run and break, on an ordinary laptop, in minutes.</p>
+        <div class="cta">
+          <a class="btn btn-primary" href="${first}/">Start with module 01 →</a>
+          <a class="btn btn-ghost" href="#syllabus">See the syllabus</a>
+        </div>
+        <ul class="hero-stats">
+          <li><b>${n_modules}</b><span>modules</span></li>
+          <li><b>~${hours} h</b><span>of study</span></li>
+          <li><b>0</b><span>downloads or GPUs</span></li>
+          <li><b>100%</b><span>runnable code</span></li>
+        </ul>
+        <p class="resume" hidden>Welcome back. <a href="#" class="resume-link"></a></p>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <svg viewBox="0 0 420 320" class="net">
+          <g class="edges"></g><g class="nodes"></g>
+        </svg>
+      </div>
+    </section>
+
+    <section class="pillars">
+      <div><h3>Build it, then use the library</h3><p>Every core idea is first written by hand in NumPy or a few lines of PyTorch, checked numerically, and only then replaced by the framework version.</p></div>
+      <div><h3>Small enough for a laptop</h3><p>Models are sized to train on a CPU in seconds to minutes while still showing the real behaviour: learned filters, attention that reorders words, skills that emerge during training.</p></div>
+      <div><h3>Honest results</h3><p>Every model is compared with a baseline, every metric is measured on held-out data, and the notebooks say plainly when a technique does not help.</p></div>
+    </section>
+
+    <section class="syllabus" id="syllabus">
+      <div class="section-head">
+        <h2>Syllabus</h2>
+        <p>Three parts, nine modules. Each module is one notebook: read the explanations, run the cells, then try the exercises at the end. Your progress is remembered in this browser.</p>
+        <div class="progress-wrap"><div class="progress"><span class="progress-bar"></span></div><span class="progress-label"></span></div>
+      </div>
+$tracks
+    </section>
+
+    <section class="howto" id="run">
+      <div>
+        <h2>Run it yourself</h2>
+        <p>Each lesson page shows the notebook with its saved outputs, so you can read the whole course in the browser. To experiment, download a notebook or open it in Google Colab from the lesson page, or clone the repository and run everything locally:</p>
+<pre class="shell"><code>git clone ${repo}.git
+cd academy/${repo_path}
+python3 -m venv .venv &amp;&amp; source .venv/bin/activate
+pip install -r requirements.txt
+jupyter lab</code></pre>
+      </div>
+      <div class="prereq">
+        <h3>What you need</h3>
+        <ul>
+          <li><b>Python:</b> comfortable with functions, loops and lists. NumPy experience helps but is introduced as we go.</li>
+          <li><b>Maths:</b> high-school algebra; derivatives are explained when they appear. No linear algebra course required.</li>
+          <li><b>Hardware:</b> any laptop from the last decade. The longest notebook (the GPT) trains in about 15 minutes on a CPU.</li>
+        </ul>
+        <h3>Further reading</h3>
+        <ul class="reading">
+          <li>He et al., <i>Deep Residual Learning for Image Recognition</i> (2015)</li>
+          <li>Ronneberger et al., <i>U-Net</i> (2015) · Redmon et al., <i>You Only Look Once</i> (2015)</li>
+          <li>Schroff et al., <i>FaceNet</i> (2015) · Mikolov et al., <i>word2vec</i> (2013)</li>
+          <li>Bolukbasi et al., <i>Debiasing Word Embeddings</i> (2016)</li>
+          <li>Bahdanau et al., <i>Neural Machine Translation by Jointly Learning to Align and Translate</i> (2014)</li>
+          <li>Vaswani et al., <i>Attention Is All You Need</i> (2017)</li>
+          <li>Karpathy, <i>The Unreasonable Effectiveness of Recurrent Neural Networks</i> (2015)</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+  <script>window.NN1001_MODULES = ${modules_json};</script>

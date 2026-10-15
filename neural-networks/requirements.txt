@@ -1,0 +1,6 @@
+numpy>=1.26
+matplotlib>=3.8
+scikit-learn>=1.4
+torch>=2.2
+jupyterlab>=4.0
+nbconvert>=7.0

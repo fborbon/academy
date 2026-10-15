@@ -1,0 +1,36 @@
+  <div class="lesson-layout">
+    <aside class="sidebar" aria-label="Course modules">
+      <button class="side-toggle" type="button" aria-expanded="false">Modules ▾</button>
+      <div class="side-inner">
+        <a class="side-home" href="../">← Course overview</a>
+        <div class="progress small"><span class="progress-bar"></span></div>
+        <ol class="side-list">$side</ol>
+      </div>
+    </aside>
+    <main class="lesson">
+      <header class="lesson-head">
+        <p class="eyebrow">$track · Module $n of $total</p>
+        <h1>$title</h1>
+        <p class="lead">$blurb</p>
+        <ul class="chips">$chips</ul>
+        <div class="lesson-actions">
+          <span class="meta">⏱ ~$minutes min</span>
+          <span class="meta">💻 runs in $cpu on a CPU</span>
+          <a class="btn btn-small" href="../notebooks/$file" download>⬇ Download notebook</a>
+          <a class="btn btn-small" href="$colab" target="_blank" rel="noopener">Open in Colab</a>
+          <a class="btn btn-small btn-quiet" href="$github" target="_blank" rel="noopener">View on GitHub</a>
+        </div>
+      </header>
+      <article class="notebook">
+$content
+      </article>
+      <div class="complete-box">
+        <button class="btn btn-primary complete-btn" type="button" data-module="$n">Mark module $n as complete</button>
+      </div>
+      $pager
+    </main>
+    <nav class="toc" aria-label="On this page">
+      <p>On this page</p>
+      <ol>$toc</ol>
+    </nav>
+  </div>
