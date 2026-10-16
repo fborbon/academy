@@ -1,0 +1,252 @@
+@@ file 04_redes_convolucionales.ipynb
+
+@@ md 922a2335e2
+# 04 · Redes neuronales convolucionales
+
+Un MLP trata su entrada como una lista plana de números. Una imagen no es una lista plana: los píxeles tienen **vecinos**, y un patrón (un borde, el bucle de un "6") significa lo mismo aparezca donde aparezca. Una **red neuronal convolucional** incorpora ambos hechos en su estructura. Esa suposición incorporada se llama **sesgo inductivo**, y elegir el adecuado suele valer más que añadir parámetros.
+
+Lo que vas a construir y medir en este notebook:
+
+| Sección | Idea | Experimento |
+|---|---|---|
+| 1-4 | convolución, pesos compartidos, mapas de características | una pequeña CNN frente a un MLP con dígitos manuscritos, robustez ante imágenes desplazadas |
+| 5 | aumento de datos | enseñar a la red que un dígito desplazado sigue siendo el mismo dígito |
+| 6 | conexiones residuales | una CNN simple de 20 capas que no logra aprender frente a la misma profundidad con conexiones de salto |
+| 7 | aprendizaje por transferencia | aprender los dígitos 5-9 con un puñado de ejemplos reutilizando una red entrenada con 0-4 |
+| 8 | convoluciones eficientes | convoluciones 1×1 y separables en profundidad: una fracción de los parámetros a cambio de un pequeño coste en exactitud |
+
+Todo usa **PyTorch** (el notebook 02 mostró lo que hace `loss.backward()` por dentro) y los trucos de entrenamiento del notebook 03. Se ejecuta en una CPU en pocos minutos y sin descargas: los dígitos vienen incluidos en scikit-learn.
+
+@@ md 91a3f50659
+## 1. ¿Por qué no un MLP?
+
+Una imagen RGB de 224×224 tiene 150.528 entradas. Una sola capa densa de 1.000 neuronas necesitaría 150 millones de pesos, y tendría que aprender "oreja de gato arriba a la izquierda" y "oreja de gato abajo a la derecha" **por separado**.
+
+Una **convolución** desliza un pequeño núcleo (kernel, p. ej. de 3×3) sobre la imagen y calcula una suma ponderada en cada posición:
+
+$$ (I * K)[i,j] = \sum_{u}\sum_{v} I[i+u,\, j+v]\; K[u,v] $$
+
+* **Conectividad local:** cada salida solo mira un pequeño parche.
+* **Pesos compartidos:** se usa el mismo núcleo en todas partes, así que un detector de características aprendido una vez funciona en cualquier posición. Un núcleo de 3×3 tiene 9 pesos sea cual sea el tamaño de la imagen.
+* **Apilar** convoluciones amplía el **campo receptivo**: la capa 1 ve bordes, la capa 2 esquinas y texturas, y las capas más profundas partes de objetos y objetos completos.
+
+## 2. La convolución desde cero
+
+@@ md 0d703acfbe
+En una CNN estos núcleos **no se diseñan a mano**: son pesos aprendidos con retropropagación. Otros bloques de construcción:
+
+* **Canales:** una capa convolucional tiene muchos núcleos, y cada uno produce un *mapa de características*. Una entrada RGB tiene 3 canales; una capa con 32 núcleos produce 32 canales.
+* El **relleno** (padding) conserva el tamaño espacial; un **paso** (stride) mayor que 1 reduce la resolución.
+* El **pooling** (p. ej. máximo de 2×2) reduce la resolución a la mitad, da cierta invariancia ante pequeños desplazamientos y ahorra cálculo.
+* Al final, los mapas de características se aplanan (o se promedian globalmente) y entran en un pequeño clasificador MLP.
+
+```
+imagen 1×8×8 ─► Conv3×3(16) ─► ReLU ─► Conv3×3(32) ─► ReLU ─► MaxPool2 ─► 32×4×4 ─► aplanar ─► Lineal(64) ─► ReLU ─► Lineal(10) ─► clase
+```
+
+## 3. Entrenar una CNN con dígitos manuscritos
+
+@@ md d9fac054ef
+### ¿Ayuda el sesgo convolucional? Desplacemos las imágenes de prueba un píxel
+
+Ambos modelos se entrenaron con dígitos centrados. Desplaza cada imagen de prueba un píxel a la derecha: el MLP ve posiciones de entrada en su mayoría distintas, mientras que los núcleos compartidos de la CNN siguen encontrando los mismos trazos.
+
+@@ md 7e93399f88
+## 4. Mirar dentro: filtros aprendidos y mapas de características
+
+@@ md ddd4a2d405
+## 5. Aumento de datos: enseñar invariancias con datos falsos
+
+La prueba de desplazamiento de arriba mostró que la CNN es *más* robusta que el MLP ante dígitos movidos, pero no inmune: la capa densa final sigue fijándose en las posiciones exactas. La solución más barata es **mostrarle a la red dígitos desplazados durante el entrenamiento**. Cada minilote se traslada al azar hasta 2 píxeles antes de la pasada hacia adelante, así que cada época ve imágenes ligeramente distintas.
+
+El aumento de datos codifica un conocimiento que ya tienes ("un 3 desplazado sigue siendo un 3") como datos en lugar de como arquitectura. En la práctica es uno de los regularizadores más eficaces en visión: recortes aleatorios, volteos, variaciones de color, rotaciones. La única regla es que la transformación no debe cambiar la etiqueta (¡voltear un "6" verticalmente da un "9"!).
+
+@@ md 8216dae101
+La red aumentada cede unos pocos puntos con las imágenes originales, perfectamente centradas (ahora dedica capacidad a posiciones que rara vez verá en este conjunto de prueba), y gana muchísimo con las desplazadas. Nunca vio ni una sola imagen *real* adicional: todo el conocimiento extra vino de la regla de aumento.
+
+## 6. Ir a lo profundo: por qué importan las conexiones residuales
+
+Las redes más profundas pueden representar funciones más complejas, así que lo natural es apilar más capas. Hacia 2015 los investigadores notaron algo extraño: más allá de unas 20 capas, las redes profundas **simples** empeoraban, incluso en el conjunto de entrenamiento. Eso no es sobreajuste (notebook 03), es un fallo de optimización: el gradiente tiene que atravesar cada capa en su camino de vuelta, y por el camino se encoge o se desordena.
+
+La solución propuesta en el artículo de ResNet (He et al., 2015) es casi vergonzosamente simple. En lugar de pedirle a un bloque que calcule una representación nueva $H(x)$, se le pide una *corrección* de su entrada:
+
+$$ y = x + F(x) $$
+
+El camino identidad (la **conexión de salto**) le da al gradiente una autopista directa hacia las primeras capas: $\partial y / \partial x = I + \partial F / \partial x$, así que aunque $\partial F/\partial x$ sea diminuto, la señal sobrevive. Un bloque que no tenga nada útil que añadir puede aprender simplemente $F \approx 0$ y comportarse como la identidad, de modo que la profundidad extra ya no puede perjudicar. Volverás a encontrar la misma idea como el **flujo residual** del transformer (notebook 07).
+
+Construimos dos redes de 20 convoluciones que se diferencian **solo** en las conexiones de salto y las entrenamos durante el mismo número de pasos.
+
+@@ md a0f785d53e
+La gráfica de la derecha es el diagnóstico. En la red simple, el gradiente que llega a los primeros bloques es varios órdenes de magnitud menor que arriba, así que las primeras capas apenas se mueven y la red entrena lentamente o no entrena. Con conexiones de salto, cada bloque recibe un gradiente sano desde el principio.
+
+La normalización por lotes (notebook 03) también ayuda a las redes profundas simples, y las ResNet reales usan ambas cosas. La conexión de salto es la pieza que hizo rutinarias las redes de más de 100 capas, y hoy está en casi todas las arquitecturas profundas.
+
+## 7. Aprendizaje por transferencia: reutilizar lo que otra red ya aprendió
+
+Los datos etiquetados son caros. Si una red ya aprendió características útiles en una tarea **relacionada** con muchos datos, podemos partir de esas características en lugar de pesos aleatorios. Así funciona casi toda la visión artificial práctica: se parte de una red preentrenada con millones de imágenes y se adapta a tus pocos cientos.
+
+Para mantenerlo todo sin conexión, escenificamos la misma situación con dígitos:
+
+* **Tarea de origen (muchos datos):** clasificar los dígitos del 0 al 4, usando todas sus imágenes de entrenamiento.
+* **Tarea de destino (muy pocos datos):** clasificar los dígitos del 5 al 9, con solo $k$ imágenes etiquetadas por clase.
+
+Los trazos, bucles y esquinas se comparten entre las dos mitades, así que las características aprendidas con 0-4 *deberían* ayudar con 5-9. Que de verdad lo hagan depende de cómo se entrenó la red de origen, así que la entrenamos dos veces: una de forma simple y otra con el aumento por desplazamiento aleatorio de la sección 5. Para cada red de origen comparamos tres estrategias:
+
+| Estrategia | Qué se entrena en la tarea de destino |
+|---|---|
+| desde cero | todos los pesos, partiendo de valores aleatorios |
+| características congeladas | solo una nueva cabeza clasificadora; las capas convolucionales conservan los pesos de origen |
+| ajuste fino | todo, partiendo de los pesos de origen, con una tasa de aprendizaje pequeña |
+
+@@ md 057d326f87
+Las líneas discontinuas son la parte incómoda del resultado. Las características de la red de origen **simple** ayudan un poco con uno a cinco ejemplos por clase, pero con 10 ejemplos ya no son mejores que entrenar desde cero, y con 25 son *peores*: están especializadas en los dígitos 0-4 exactos y centrados con los que se entrenaron, y partir de ellas estorba en cuanto la tarea de destino tiene suficientes datos propios. Las características congeladas de la red de origen **aumentada** superan a entrenar desde cero con cualquier cantidad de datos, y con 5 ejemplos por clase reducen el error aproximadamente a la mitad.
+
+Fíjate en la sorpresa de las dos primeras líneas impresas: la red de origen aumentada es *peor* en su propia tarea (cedió exactitud con los dígitos de prueba perfectamente centrados, como en la sección 5) y, aun así, es el mejor punto de partida para una tarea nueva. Misma arquitectura, mismos datos de origen, misma tarea de destino: el aumento de datos obligó a la red de origen a aprender características que no dependen de una posición exacta, y las características generales son las que se transfieren. La puntuación de un modelo en su tarea original es una mala guía de lo útiles que serán sus características en otra.
+
+Dos advertencias honestas más sobre este montaje de juguete:
+
+* Una CNN con dígitos de 8×8 ya aprende muy bien desde cero (su sesgo inductivo hace mucho trabajo), así que incluso la mejora buena es moderada. Con fotos reales y una red preentrenada con millones de imágenes variadas, la diferencia suele ser mucho mayor.
+* Los modelos preentrenados que se usan en la práctica se entrenan con mucho aumento de datos sobre conjuntos enormes y diversos, y por eso sus características se transfieren tan bien. "El aprendizaje por transferencia funciona" es, en realidad, una afirmación sobre *cómo se entrenó el modelo de origen*.
+
+Reglas prácticas que se trasladan a proyectos reales:
+
+* **Conjunto de destino diminuto, dominio parecido:** congela la red base y entrena solo una cabeza nueva.
+* **Más datos de destino:** haz ajuste fino de todo con una tasa de aprendizaje varias veces menor que para entrenar desde cero, para que las características útiles se ajusten en lugar de sobrescribirse.
+* **Dominio muy distinto** (por ejemplo, radiografías con una red preentrenada con fotos de vacaciones): las primeras capas (bordes, texturas) se siguen transfiriendo bien, las últimas no tanto.
+
+## 8. Convoluciones eficientes: 1×1 y separables en profundidad
+
+Una convolución estándar de $3\times3$ de $C_{in}$ a $C_{out}$ canales tiene $9\, C_{in} C_{out}$ pesos: cada canal de salida mira cada canal de entrada en cada desplazamiento espacial. Dos bloques más baratos se usan en todas las redes modernas (Inception, MobileNet, EfficientNet):
+
+* **Convolución 1×1:** una pequeña capa densa aplicada en cada píxel. Mezcla canales pero no espacio, y es la forma estándar de reducir o aumentar el número de canales a bajo coste.
+* **Convolución separable en profundidad:** divide el trabajo en dos. Primero una convolución *en profundidad* de $3\times3$ filtra cada canal por separado ($9\, C_{in}$ pesos) y después una convolución *puntual* de $1\times1$ mezcla los canales ($C_{in} C_{out}$ pesos). Con $C_{in} = C_{out} = 64$ eso supone unas 8 veces menos pesos y operaciones.
+
+@@ md 01a1a71c1e
+La red separable usa varias veces menos pesos de convolución a cambio de una pequeña caída en exactitud. Con el número de canales de las redes reales, el ahorro se acerca a un orden de magnitud, y eso es buena parte de lo que permite que las redes neuronales sean lo bastante rápidas para ejecutarse en un teléfono. Arquitecturas como MobileNet recuperan después la exactitud invirtiendo el ahorro en más canales o capas.
+
+**Hacia dónde fueron después las CNN:** LeNet (1998) → AlexNet (2012, el gran avance del aprendizaje profundo en ImageNet) → VGG → **ResNet** (2015, conexiones residuales) → MobileNet / EfficientNet (bloques eficientes, escalado cuidadoso) → los transformers de visión, que sustituyen las convoluciones por atención sobre parches de imagen (notebook 07). El notebook 09 lleva las CNN más allá de "una etiqueta por imagen": segmentación, detección y similitud aprendida.
+
+## Ideas clave
+
+* Una convolución es un pequeño filtro que se desliza sobre la imagen. Los **pesos compartidos** hacen que las CNN sean eficientes con los datos y robustas a la posición de un patrón.
+* El **aumento de datos** enseña gratis invariancias que ya conoces.
+* Las **conexiones residuales** ($y = x + F(x)$) mantienen vivos los gradientes a lo largo de la profundidad, y eso es lo que hizo entrenables las redes muy profundas.
+* El **aprendizaje por transferencia** reutiliza características de una tarea con muchos datos, y gana más cuando tus propios datos etiquetados escasean.
+* Las convoluciones **1×1 y separables en profundidad** reducen parámetros y cálculo en grandes factores a cambio de una pequeña pérdida de exactitud.
+
+## Ejercicios
+
+1. Añade `nn.BatchNorm2d` después de cada convolución en la red *simple* de 20 capas (sección 6). ¿Cuánta parte de la diferencia con la red residual cierra?
+2. Aumenta la profundidad a 40 convoluciones (`n_blocks=20`). ¿Qué le pasa a cada red?
+3. En la sección 5, añade rotaciones aleatorias de ±15° como aumento de datos (pista: `torch.rot90` solo gira 90°; prueba `torch.nn.functional.affine_grid`). ¿Ayuda con el conjunto de prueba original, sin desplazar?
+4. Transfiere en la otra dirección: preentrena con 5-9 y adapta a 0-4. ¿Es simétrico el beneficio?
+5. Entrena la red de origen con los dígitos 0-4 durante 5 épocas en lugar de 30 (con aumento de datos). ¿Las características de origen poco entrenadas se transfieren mejor o peor que las completamente entrenadas?
+6. Haz ajuste fino con una tasa de aprendizaje de 1e-2. ¿Qué pasa con 2 ejemplos por clase, y por qué?
+
+@@ code
+<<< # grayscale, downsampled
+>>> # escala de grises, con resolución reducida
+<<< "vertical edges (Sobel x)"
+>>> "bordes verticales (Sobel x)"
+<<< "horizontal edges (Sobel y)"
+>>> "bordes horizontales (Sobel y)"
+<<< "blur (box 5x5)"
+>>> "desenfoque (caja 5x5)"
+<<< "sharpen"
+>>> "realce de nitidez"
+<<< axes[0].set_title("input")
+>>> axes[0].set_title("entrada")
+<<< if "edges" in name else out
+>>> if "bordes" in name else out
+<<< # 1,797 images of 8x8 pixels, values 0..16
+>>> # 1.797 imágenes de 8x8 píxeles, valores de 0 a 16
+<<< print("train", tuple(Xtr.shape), "test", tuple(Xte.shape))
+>>> print("entrenamiento", tuple(Xtr.shape), "prueba", tuple(Xte.shape))
+<<< print(f"trained both in {time.time() - t0:.1f}s")
+>>> print(f"ambos entrenados en {time.time() - t0:.1f} s")
+<<< print(f"CNN  params {count_params(cnn):6d}  test accuracy {h_cnn[-1]:.1%}")
+>>> print(f"CNN  parámetros {count_params(cnn):6d}  exactitud en prueba {h_cnn[-1]:.1%}")
+<<< print(f"MLP  params {count_params(mlp):6d}  test accuracy {h_mlp[-1]:.1%}")
+>>> print(f"MLP  parámetros {count_params(mlp):6d}  exactitud en prueba {h_mlp[-1]:.1%}")
+<<< plt.xlabel("epoch"); plt.ylabel("test accuracy"); plt.legend(); plt.grid(alpha=0.3); plt.show()
+>>> plt.xlabel("época"); plt.ylabel("exactitud en prueba"); plt.legend(); plt.grid(alpha=0.3); plt.show()
+<<< print(f"shift {dx}px  CNN {acc_c:.1%}   MLP {acc_m:.1%}")
+>>> print(f"desplazamiento {dx}px  CNN {acc_c:.1%}   MLP {acc_m:.1%}")
+<<< fig.suptitle("16 learned 3x3 kernels of the first conv layer (red = positive, blue = negative)")
+>>> fig.suptitle("Los 16 núcleos de 3x3 aprendidos por la primera capa convolucional (rojo = positivo, azul = negativo)")
+<<< axes[0].set_title(f"input: {yte[0].item()}")
+>>> axes[0].set_title(f"entrada: {yte[0].item()}")
+<<< ax.set_title(f"map {k}", fontsize=8)
+>>> ax.set_title(f"mapa {k}", fontsize=8)
+<<< plt.suptitle("First-layer feature maps: each kernel highlights different strokes", y=1.05)
+>>> plt.suptitle("Mapas de características de la primera capa: cada núcleo resalta trazos distintos", y=1.05)
+<<< ax.set_xlabel("predicted"); ax.set_ylabel("true"); ax.set_title("CNN confusion matrix (test set)")
+>>> ax.set_xlabel("predicho"); ax.set_ylabel("real"); ax.set_title("Matriz de confusión de la CNN (conjunto de prueba)")
+<<< print(f"{len(wrong)} mistakes out of {len(yte)}")
+>>> print(f"{len(wrong)} errores de {len(yte)}")
+<<< ax.set_title(f"true {yte[i].item()} → {pred[i].item()}", fontsize=9)
+>>> ax.set_title(f"real {yte[i].item()} → {pred[i].item()}", fontsize=9)
+<<< # translate each image independently, filling the uncovered border with zeros
+>>> # traslada cada imagen por separado y rellena con ceros el borde descubierto
+<<< # deterministic shift with zero fill (no wrap-around), used for testing
+>>> # desplazamiento determinista rellenando con ceros (sin dar la vuelta), para la prueba
+<<< print(f"{'test images shifted by':24s} {'plain CNN':>10s} {'augmented CNN':>14s}")
+>>> print(f"{'prueba desplazada':24s} {'CNN simple':>10s} {'CNN aumentada':>14s}")
+<<< # two 3x3 convolutions; with residual=True the input is added back to the output
+>>> # dos convoluciones 3x3; con residual=True la entrada se vuelve a sumar a la salida
+<<< # global average pooling
+>>> # pooling de promedio global
+<<< # gradient size reaching each block for one batch, from output (right) back to input (left)
+>>> # tamaño del gradiente que llega a cada bloque para un lote, desde la salida (derecha) hasta la entrada (izquierda)
+<<< ("plain, 20 conv layers", False), ("residual, 20 conv layers", True)
+>>> ("simple, 20 capas conv.", False), ("residual, 20 capas conv.", True)
+<<< print(f"{name:26s} params {count_params(m):,}  test accuracy {curves[name][-1]:.1%}  ({time.time() - t0:.0f}s)")
+>>> print(f"{name:26s} parámetros {count_params(m):,}  exactitud en prueba {curves[name][-1]:.1%}  ({time.time() - t0:.0f} s)")
+<<< axes[0].set_xlabel("epoch"); axes[0].set_ylabel("test accuracy"); axes[0].legend(); axes[0].set_title("Same depth, same data, same optimiser")
+>>> axes[0].set_xlabel("época"); axes[0].set_ylabel("exactitud en prueba"); axes[0].legend(); axes[0].set_title("Misma profundidad, mismos datos, mismo optimizador")
+<<< axes[1].set_xlabel("block (1 = closest to the input)"); axes[1].set_ylabel("gradient norm at initialisation")
+>>> axes[1].set_xlabel("bloque (1 = el más cercano a la entrada)"); axes[1].set_ylabel("norma del gradiente al inicializar")
+<<< axes[1].set_title("How much gradient reaches each block")
+>>> axes[1].set_title("Cuánto gradiente llega a cada bloque")
+<<< # fresh, randomly initialised classifier on top of the convolutional features
+>>> # clasificador nuevo, inicializado al azar, sobre las características convolucionales
+<<< ("plain source", None), ("augmented source", random_shift)
+>>> ("origen simple", None), ("origen aumentado", random_shift)
+<<< print(f"{name:17s} (digits 0-4): test accuracy {h[-1]:.1%}")
+>>> print(f"{name:17s} (dígitos 0-4): exactitud en prueba {h[-1]:.1%}")
+<<< # the old head only knew digits 0-4
+>>> # la cabeza anterior solo conocía los dígitos 0-4
+<<< # fine-tuning: smaller learning rate
+>>> # ajuste fino: tasa de aprendizaje menor
+<<< "from scratch"
+>>> "desde cero"
+<<< "frozen features"
+>>> "características congeladas"
+<<< "fine-tuning"
+>>> "ajuste fino"
+<<< print(f"\n{len(runs) * len(ks) * 5} target-task trainings in {time.time() - t0:.0f}s\n")
+>>> print(f"\n{len(runs) * len(ks) * 5} entrenamientos en la tarea de destino en {time.time() - t0:.0f} s\n")
+<<< print(f"{'error rate on digits 5-9':36s}"
+>>> print(f"{'tasa de error en los dígitos 5-9':44s}"
+<<< print(f"{label:36s}"
+>>> print(f"{label:44s}"
+<<< if "plain" in label else
+>>> if "simple" in label else
+<<< plt.xlabel("labelled images per class (target task)"); plt.ylabel("test error rate")
+>>> plt.xlabel("imágenes etiquetadas por clase (tarea de destino)"); plt.ylabel("tasa de error en prueba")
+<<< plt.title("Transfer learning: dashed = plain source, solid = augmented source (mean of 5 draws, lower is better)", fontsize=10)
+>>> plt.title("Transferencia: discontinua = origen simple, continua = origen aumentado (media de 5 extracciones; menos es mejor)", fontsize=10)
+<<< # depthwise: one 3x3 filter per channel
+>>> # en profundidad: un filtro 3x3 por canal
+<<< # pointwise: mix channels
+>>> # puntual: mezcla los canales
+<<< print(f"{cin:3d} -> {cout:3d} channels   standard 3x3: {count_params(std):7,d} params   "
+>>> print(f"{cin:3d} -> {cout:3d} canales   3x3 estándar: {count_params(std):7,d} parámetros   "
+<<< f"depthwise-separable: {count_params(sep):6,d}   ratio {count_params(std) / count_params(sep):.1f}x")
+>>> f"separable en profundidad: {count_params(sep):6,d}   proporción {count_params(std) / count_params(sep):.1f}x")
+<<< # identical to SmallCNN except the second convolution is depthwise-separable
+>>> # idéntica a SmallCNN salvo que la segunda convolución es separable en profundidad
+<<< print(f"\nstandard CNN   conv params {conv_params(cnn):5d}   test accuracy {h_cnn[-1]:.1%}")
+>>> print(f"\nCNN estándar    parámetros conv. {conv_params(cnn):5d}   exactitud en prueba {h_cnn[-1]:.1%}")
+<<< print(f"separable CNN  conv params {conv_params(sep_net):5d}   test accuracy {h_sep[-1]:.1%}")
+>>> print(f"CNN separable   parámetros conv. {conv_params(sep_net):5d}   exactitud en prueba {h_sep[-1]:.1%}")

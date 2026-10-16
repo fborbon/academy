@@ -1,0 +1,73 @@
+  <main class="landing">
+    <section class="hero">
+      <div class="hero-text">
+        <p class="eyebrow">Curso gratuito · ${n_modules} notebooks prácticos · sin GPU</p>
+        <h1>Redes Neuronales <span>1001</span></h1>
+        <p class="lead">De una sola neurona artificial a un GPT que entrenas tú mismo. Cada idea se construye desde los primeros principios, con código que puedes leer, ejecutar y romper en un equipo corriente, en minutos.</p>
+        <div class="cta">
+          <a class="btn btn-primary" href="${first}/">Empezar por el módulo 01 →</a>
+          <a class="btn btn-ghost" href="#syllabus">Ver el temario</a>
+        </div>
+        <ul class="hero-stats">
+          <li><b>${n_modules}</b><span>módulos</span></li>
+          <li><b>~${hours} h</b><span>de estudio</span></li>
+          <li><b>0</b><span>descargas o GPU</span></li>
+          <li><b>100%</b><span>código ejecutable</span></li>
+        </ul>
+        <p class="resume" hidden>Hola de nuevo. <a href="#" class="resume-link"></a></p>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <svg viewBox="0 0 420 320" class="net">
+          <g class="edges"></g><g class="nodes"></g>
+        </svg>
+      </div>
+    </section>
+
+    <section class="pillars">
+      <div><h3>Constrúyelo y después usa la librería</h3><p>Cada idea central se escribe primero a mano en NumPy o en unas pocas líneas de PyTorch, se comprueba numéricamente y solo entonces se sustituye por la versión del framework.</p></div>
+      <div><h3>Lo bastante pequeño para un equipo personal</h3><p>Los modelos tienen el tamaño justo para entrenar en una CPU en segundos o minutos y aun así mostrar el comportamiento real: filtros aprendidos, atención que reordena palabras, habilidades que surgen durante el entrenamiento.</p></div>
+      <div><h3>Resultados honestos</h3><p>Cada modelo se compara con una referencia, cada métrica se mide con datos reservados, y los notebooks dicen claramente cuándo una técnica no ayuda.</p></div>
+    </section>
+
+    <section class="syllabus" id="syllabus">
+      <div class="section-head">
+        <h2>Temario</h2>
+        <p>Tres partes, nueve módulos. Cada módulo es un notebook: lee las explicaciones, ejecuta las celdas y después haz los ejercicios del final. Tu progreso se guarda en este navegador.</p>
+        <div class="progress-wrap"><div class="progress"><span class="progress-bar"></span></div><span class="progress-label"></span></div>
+      </div>
+$tracks
+    </section>
+
+    <section class="howto" id="run">
+      <div>
+        <h2>Ejecútalo tú mismo</h2>
+        <p>Cada página de lección muestra el notebook con sus resultados guardados, así que puedes leer todo el curso en el navegador. Para experimentar, descarga un notebook o ábrelo en Google Colab desde la página de la lección, o clona el repositorio y ejecútalo todo en tu equipo:</p>
+<pre class="shell notranslate" translate="no"><code>git clone ${repo}.git
+cd academy/${repo_path}
+python3 -m venv .venv &amp;&amp; source .venv/bin/activate
+pip install -r ../requirements.txt
+jupyter lab</code></pre>
+        <p>Algunos datos de los ejercicios, como los corpus de texto de los notebooks 06 y 08, están en inglés a propósito; cada notebook explica por qué.</p>
+      </div>
+      <div class="prereq">
+        <h3>Qué necesitas</h3>
+        <ul>
+          <li><b>Python:</b> manejarte con funciones, bucles y listas. Haber usado NumPy ayuda, pero se va presentando sobre la marcha.</li>
+          <li><b>Matemáticas:</b> álgebra de secundaria; las derivadas se explican cuando aparecen. No hace falta un curso de álgebra lineal.</li>
+          <li><b>Equipo:</b> cualquier equipo personal de la última década. El notebook más largo (el GPT) entrena en unos 15 minutos en una CPU.</li>
+        </ul>
+        <h3>Lecturas recomendadas</h3>
+        <ul class="reading">
+          <li>He et al., <i>Deep Residual Learning for Image Recognition</i> (2015)</li>
+          <li>Ronneberger et al., <i>U-Net</i> (2015) · Redmon et al., <i>You Only Look Once</i> (2015)</li>
+          <li>Schroff et al., <i>FaceNet</i> (2015) · Mikolov et al., <i>word2vec</i> (2013)</li>
+          <li>Bolukbasi et al., <i>Debiasing Word Embeddings</i> (2016)</li>
+          <li>Bahdanau et al., <i>Neural Machine Translation by Jointly Learning to Align and Translate</i> (2014)</li>
+          <li>Vaswani et al., <i>Attention Is All You Need</i> (2017)</li>
+          <li>Karpathy, <i>The Unreasonable Effectiveness of Recurrent Neural Networks</i> (2015)</li>
+        </ul>
+        <p class="reading">Los artículos están en inglés, que es el idioma en que se publican.</p>
+      </div>
+    </section>
+  </main>
+  <script>window.NN1001_MODULES = ${modules_json};</script>

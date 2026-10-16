@@ -1,0 +1,344 @@
+@@ file 08_gpt_desde_cero.ipynb
+
+@@ md ba15a72091
+# 08 · Construir un GPT: un modelo generalista a partir de predecir el siguiente token
+
+**GPT** = **G**enerative **P**re-trained **T**ransformer (transformer generativo preentrenado). Es la mitad decodificadora del transformer del notebook 07, entrenada con un objetivo engañosamente simple:
+
+> dado el texto hasta ahora, predice el siguiente token.
+
+Haz eso con suficiente texto variado y el modelo tiene que aprender gramática, hechos, aritmética, traducción y patrones de razonamiento, porque todo eso ayuda a predecir lo que viene después. La *misma* red realiza entonces una tarea elegida simplemente por cómo está escrita la instrucción (el prompt). Eso es lo que la convierte en un modelo **generalista**.
+
+En este notebook construimos un GPT desde cero y lo preentrenamos con un pequeño corpus multitarea (sumas, inversión de cadenas, ordenación, traducción de inglés a español y capitales del mundo), todo escrito como texto plano. Un modelo, una pérdida, cinco habilidades.
+
+El corpus de entrenamiento está **en inglés** (las instrucciones de las tareas y los nombres de países, por ejemplo `capital peru=lima`), así que las salidas del modelo que verás más abajo también lo están; el notebook explica cada una.
+
+**Contenido**
+1. GPT en contexto
+2. Tokenización: caracteres, palabras y Byte-Pair Encoding (BPE)
+3. Un corpus de preentrenamiento multitarea
+4. La arquitectura GPT
+5. Antes de entrenar: un modelo que no sabe nada
+6. Preentrenamiento, y cómo surgen las habilidades
+7. Usar el generalista: instrucciones para distintas tareas (y alucinaciones)
+8. Muestreo: voraz, temperatura, top-k, top-p
+9. Dentro del modelo: la atención mientras suma
+10. Generación rápida con una caché KV
+11. Ajuste fino: por qué importa el preentrenamiento
+12. De un modelo base a ChatGPT, y las leyes de escala
+13. Ejercicios
+
+⏱ Tiempo de ejecución: unos 15 minutos en la CPU de un equipo personal, casi todo en la sección 6.
+
+@@ md 43bbdebb8a
+## 1. GPT en contexto
+
+| Modelo | Año | Parámetros | Tokens de entrenamiento | Qué cambió |
+|---|---|---|---|---|
+| GPT-1 | 2018 | 117 M | ~1.000 M | preentrenar con libros y después ajustar para cada tarea |
+| GPT-2 | 2019 | 1.500 M | ~10.000 M (WebText) | tareas sin ejemplos (zero-shot) solo con la instrucción |
+| GPT-3 | 2020 | 175.000 M | ~300.000 M | **aprendizaje en contexto**: mostrar unos pocos ejemplos en la instrucción |
+| InstructGPT / ChatGPT | 2022 | (GPT-3.5) | + retroalimentación humana | el ajuste por instrucciones + RLHF convierten un modelo base en un asistente |
+| GPT-4 y modelos de frontera posteriores | 2023+ | no publicado | no publicado | multimodales, mucho más grandes, mezcla de expertos, contexto largo, uso de herramientas |
+
+La arquitectura apenas cambió a lo largo de esta tabla. Lo que creció fue la **escala** (parámetros, datos, cálculo) y el **postentrenamiento** que convierte un predictor de texto en un asistente útil. El modelo que construimos tiene la misma estructura que GPT-2, solo que unas 2.000 veces más pequeño.
+
+## 2. Tokenización
+
+Un modelo lee enteros, no texto. Hay tres opciones para hacer la correspondencia:
+
+| Unidad | Vocabulario | Longitud de la secuencia | Problema |
+|---|---|---|---|
+| Caracteres | diminuto (~100) | larga | el modelo debe aprender ortografía; las secuencias se alargan |
+| Palabras | enorme (más de 100.000) | corta | palabras desconocidas, nada compartido entre "run" y "running" |
+| **Subpalabras (BPE)** | elegido (GPT-2: 50.257) | media | el compromiso estándar |
+
+**Byte-Pair Encoding** empieza con los caracteres y **fusiona** repetidamente **el par adyacente más frecuente** en un token nuevo. Las palabras frecuentes se convierten en un solo token y las raras se dividen en piezas reutilizables. Abajo está el algoritmo completo.
+
+@@ md 1d8b32b347
+Fíjate en que palabras comunes como *the* y *token* se convirtieron en un solo token, mientras que las palabras nuevas se construyen con piezas. Los tokenizadores reales aplican BPE sobre **bytes** en terabytes de texto.
+
+Para nuestro pequeño modelo usamos **caracteres**: un vocabulario de unos 40 símbolos mantiene el modelo pequeño y le permite ver exactamente cómo funcionan la suma y la inversión dígito a dígito. Todo lo demás en este notebook es idéntico con un vocabulario BPE.
+
+## 3. Un corpus de preentrenamiento multitarea
+
+Los GPT reales se preentrenan con páginas web, libros, código y artículos, que contienen implícitamente incontables "tareas". Lo imitamos con cinco tipos de tarea, mezclados en un único flujo de texto plano, un ejemplo por línea:
+
+| Tarea | Línea de ejemplo | Qué requiere |
+|---|---|---|
+| `add` | `add 23+58=81` | un algoritmo (llevarse dígitos) |
+| `rev` | `rev kqzpa=apzqk` | un algoritmo (copiar al revés) |
+| `sort` | `sort 5 2 9 2=2 2 5 9` | un algoritmo (ordenar) |
+| `es` | `es she wants the red car=ella quiere el coche rojo` | lenguaje: vocabulario, conjugación, concordancia, orden de las palabras |
+| `capital` | `capital peru=lima` | **hechos** memorizados |
+
+Para probar la **generalización** real, reservamos 500 sumas y 120 frases que el modelo nunca ve durante el entrenamiento, y la inversión usa cada vez cadenas aleatorias nuevas. Las capitales solo pueden memorizarse, así que con ellas probamos el recuerdo de hechos de entrenamiento.
+
+@@ md a6f5e5907a
+**Los ejemplos de entrenamiento son simplemente ventanas de texto.** Cortamos fragmentos aleatorios de `BLOCK = 64` caracteres del corpus. La entrada es el fragmento y el objetivo es el mismo fragmento desplazado un carácter. Así, cada posición de cada fragmento es un ejemplo de entrenamiento: *"dado `add 23+5`, predice `8`"*. Un fragmento de 64 caracteres da 64 predicciones a la vez, gracias a la máscara causal.
+
+@@ md 4442159378
+## 4. La arquitectura GPT
+
+Exactamente el bloque decodificador del notebook 07, sin la atención cruzada (no hay codificador):
+
+```
+ids de tokens ─► embedding de token ─┐
+posiciones ─► embedding de posición (aprendido) ─(+)─► [Bloque] × N ─► LayerNorm ─► Lineal (atada al embedding) ─► logits
+
+Bloque: x = x + AutoatenciónCausal(LayerNorm(x))      # leer los tokens anteriores
+        x = x + MLP(LayerNorm(x))                     # pensar sobre ellos
+```
+
+Detalles que coinciden con GPT-2:
+* Embeddings de posición **aprendidos** en lugar de sinusoides.
+* **Pesos atados** (weight tying): la capa de salida reutiliza la matriz de embeddings de entrada (el vector de "significado" de un token se usa tanto para leerlo como para escribirlo), lo que ahorra parámetros.
+* Inicialización normal pequeña (desviación típica 0,02).
+* `scaled_dot_product_attention` es el núcleo fusionado de PyTorch (al estilo de FlashAttention) para $\text{softmax}(QK^\top/\sqrt{d})V$ con máscara causal. También conservamos un camino explícito más lento para poder ver los pesos de atención.
+* `past` permite al modelo reutilizar las claves y los valores de pasos anteriores: la **caché KV** (sección 10).
+
+@@ md 1152478a4c
+## 5. Antes de entrenar: un modelo que no sabe nada
+
+Con pesos aleatorios, cada carácter siguiente es más o menos igual de probable, así que la pérdida debería rondar $-\ln(1/V) = \ln V$. Comprobarlo es una prueba de cordura habitual antes de un entrenamiento largo.
+
+@@ md 8ee1f827d4
+## 6. Preentrenamiento, y cómo surgen las habilidades
+
+El bucle es el mismo que en todos los notebooks anteriores: pasada hacia adelante, pérdida de entropía cruzada, pasada hacia atrás, paso de AdamW. Añadidos que usa el entrenamiento real de LLM:
+* **AdamW** con decaimiento de pesos y $\beta_2 = 0.95$ (los valores de GPT-3),
+* **calentamiento de la tasa de aprendizaje y después decaimiento coseno** (`OneCycleLR`),
+* **recorte del gradiente** a norma 1,0.
+
+Cada 400 pasos nos detenemos y medimos la exactitud en las instrucciones **reservadas** de cada tarea. Esto muestra algo que también se ve en los modelos grandes: **las distintas habilidades aparecen en momentos distintos**. La pérdida total baja de forma suave, pero las capacidades individuales pueden encenderse de forma bastante repentina.
+
+@@ md 3477917b87
+## 7. Usar el generalista
+
+El modelo no tiene cabezas ni caminos de código específicos de cada tarea. **Solo el prefijo de la instrucción** decide lo que hace. Todas las instrucciones de abajo están **reservadas**: esas sumas y frases nunca aparecieron en el entrenamiento, y las cadenas para invertir son letras aleatorias nuevas.
+
+@@ md 1bfe60fd95
+### Alucinación: respuestas seguras a preguntas que no puede saber
+
+El modelo aprendió el *formato* de una respuesta sobre capitales, no una forma de decir "no lo sé". Pregúntale por países que nunca vio (o que no existen) y aun así produce una ciudad de aspecto plausible, normalmente una mezcla de las que memorizó. Los grandes modelos de lenguaje alucinan por la misma razón: se entrenan para producir texto probable, y plausible no es lo mismo que verdadero. El postentrenamiento (sección 12) y la consulta de fuentes reales lo reducen, pero no lo eliminan del todo.
+
+@@ md 89aa32980f
+### Generalización más allá de la distribución de entrenamiento
+
+Las instrucciones de prueba de arriba no se habían visto, pero estaban *dentro de la distribución*. ¿Qué pasa con entradas que no se parecen a nada del entrenamiento?
+
+@@ md fb66a489e5
+Los modelos pequeños extrapolan mal: aprenden los patrones que cubren sus datos. Buena parte de la razón por la que los LLM de frontera parecen generales es que sus datos de entrenamiento cubren una variedad enorme de patrones. La generalización robusta fuera de la distribución sigue siendo un problema de investigación abierto.
+
+## 8. Estrategias de muestreo
+
+El modelo produce una distribución de probabilidad sobre el siguiente token. Cómo elegimos a partir de ella cambia su comportamiento:
+
+| Estrategia | Regla | Efecto |
+|---|---|---|
+| Voraz | tomar el argmax | determinista, la mejor para tareas con una única respuesta correcta |
+| Temperatura $T$ | muestrear de softmax(logits / $T$) | $T<1$ más marcada y segura, $T>1$ más aleatoria y creativa |
+| Top-k | quedarse solo con los $k$ tokens más probables | corta la larga cola de disparates |
+| Top-p (núcleo) | quedarse con el conjunto más pequeño cuya probabilidad total sea ≥ $p$ | adapta el corte a lo seguro que esté el modelo |
+
+Primero, mira la propia distribución para dos instrucciones: una en la que la respuesta es segura y otra en la que muchas continuaciones son válidas.
+
+@@ md c0446c3645
+Sin instrucción, el modelo "sueña" sus propios datos de entrenamiento: elige una tarea y escribe un ejemplo. La decodificación voraz se queda atascada repitiendo la línea más probable; una temperatura moderada da líneas variadas y en su mayoría válidas; una temperatura alta rompe el formato. Es el mismo mando que ajustas en la API de cualquier LLM.
+
+## 9. Dentro del modelo: la atención mientras suma
+
+Para escribir la respuesta a `add 47+38=`, el modelo debe encontrar los dígitos correctos de ambos números. Dibujamos la atención de cada cabeza desde las últimas posiciones (donde se producen los dígitos de la respuesta) hacia atrás sobre la instrucción.
+
+@@ md 0c65e9309d
+Busca cabezas que pongan su peso en los dígitos de los dos operandos de la misma columna (decenas con decenas, unidades con unidades): esas cabezas reúnen las entradas que necesita un sumador, mientras que los MLP hacen la aritmética de los dígitos. Otras cabezas atienden a los signos `=` o `+`, que marcan *en qué punto* del problema está el modelo. La investigación en interpretabilidad de modelos grandes encuentra cabezas de "inducción" y de "copia" parecidas.
+
+## 10. Generación rápida con una caché KV
+
+Generar el token $t$ requiere atención sobre los $t-1$ tokens anteriores. Sin caché, cada paso vuelve a calcular las claves y los valores de todo el prefijo: $O(n^2)$ de trabajo para $n$ tokens. Como las claves y los valores anteriores nunca cambian (¡máscara causal!), podemos **guardarlos en caché** y calcular solo $q, k, v$ del token nuevo en cada paso. Todos los servidores de LLM en producción lo hacen; la memoria que ocupa la caché es una de las grandes razones de innovaciones como la atención de consultas agrupadas.
+
+@@ md b7a2ff546e
+La aceleración crece con la longitud de la secuencia; con miles de tokens es enorme.
+
+## 11. Ajuste fino: por qué importa el preentrenamiento
+
+La receta de GPT-1, que se sigue usando hoy: **preentrenar** una vez con muchos datos generales y después hacer un **ajuste fino** breve con un pequeño conjunto de datos específico de la tarea.
+
+Una tarea nueva que el modelo nunca ha visto: traducir **de español a inglés** (`en ella quiere el coche rojo=she wants the red car`). Damos a dos modelos idénticos los mismos 200 pasos de ajuste fino:
+* uno parte de nuestros pesos preentrenados (ya conoce ambos vocabularios y cómo se corresponden),
+* otro parte de pesos aleatorios.
+
+@@ md 46cf8bc47c
+### Olvido catastrófico
+
+Ajustar solo con la tarea nueva puede dañar las habilidades antiguas, porque nada en la pérdida las protege. El ajuste fino real mezcla algunos datos generales o usa métodos eficientes en parámetros como **LoRA**, que congelan los pesos originales y entrenan pequeñas matrices añadidas.
+
+@@ md e2ec2a5edf
+## 12. De un modelo base a ChatGPT, y las leyes de escala
+
+Lo que entrenamos es un **modelo base**: continúa el texto al estilo de sus datos de entrenamiento. Convertir un modelo base en un asistente requiere etapas adicionales:
+
+```mermaid
+flowchart LR
+    A[Preentrenamiento<br/>predecir el siguiente token<br/>billones de tokens] --> B[Ajuste fino supervisado SFT<br/>instrucción escrita por humanos → respuesta ideal]
+    B --> C[Ajuste por preferencias<br/>RLHF con un modelo de recompensa, o DPO<br/>humanos ordenan respuestas]
+    C --> D[Asistente<br/>+ herramientas, búsqueda, sistemas de seguridad]
+```
+
+| Etapa | Datos | Qué enseña |
+|---|---|---|
+| Preentrenamiento | web, libros, código (la mayor parte del cálculo) | conocimiento, lenguaje, habilidades |
+| Ajuste fino supervisado (SFT) | decenas de miles de conversaciones seleccionadas | el *formato* de un asistente: responder a la pregunta, seguir instrucciones |
+| RLHF / DPO | preferencias humanas (o de una IA) entre respuestas | ser útil, honesto e inofensivo; negarse cuando corresponde; decir "no lo sé" |
+| Uso de herramientas y búsqueda | demostraciones de llamadas a herramientas | consultar datos en lugar de alucinar (sección 7), ejecutar código, navegar |
+
+Fíjate en que nuestro modelo ya hace una versión diminuta de SFT: el formato `tarea entrada=respuesta` es un formato de instrucción. El prefijo de la instrucción *es* la instrucción.
+
+### Aprendizaje en contexto
+
+Los GPT grandes pueden aprender una tarea nueva a partir de unos pocos ejemplos colocados **en la instrucción**, sin ninguna actualización de pesos (el hallazgo principal de GPT-3). Nuestro modelo es demasiado pequeño para eso: solo puede hacer tareas cuyo formato vio durante el entrenamiento. El aprendizaje en contexto es una de las capacidades que aparecen con la escala.
+
+### Leyes de escala
+
+Kaplan et al. (2020) y Hoffmann et al. (2022, "Chinchilla") encontraron que la pérdida baja siguiendo una **ley de potencias** suave en los parámetros $N$, los datos $D$ y el cálculo $C$. Dos reglas prácticas:
+* Cálculo de entrenamiento ≈ $6ND$ operaciones de coma flotante.
+* El entrenamiento óptimo en cálculo usa unos **20 tokens por parámetro**.
+
+@@ md 2e17c5a2ff
+El entrenamiento de GPT-3 usó aproximadamente **diez mil millones de veces** el cálculo de la ejecución que acabas de hacer, con esencialmente la misma arquitectura y el mismo objetivo.
+
+## Ideas clave
+
+* Un GPT es una pila de bloques transformer **causales** (atención + MLP) entrenada para **predecir el siguiente token**.
+* El texto se convierte en enteros con un tokenizador; BPE equilibra el tamaño del vocabulario con la longitud de la secuencia.
+* Predecir el siguiente token con texto variado obliga al modelo a aprender muchas habilidades; la **instrucción** elige cuál usar. Por eso un solo modelo puede ser generalista.
+* Las habilidades surgen en momentos distintos del entrenamiento; la pérdida es suave, las capacidades pueden ser abruptas.
+* El modelo aprende la *forma* de las respuestas, así que puede **alucinar**; además extrapola mal fuera de su distribución de entrenamiento.
+* El muestreo (temperatura, top-k, top-p) intercambia fiabilidad por diversidad; la **caché KV** hace rápida la generación.
+* **Preentrenar y después ajustar** transfiere conocimiento; un ajuste fino ingenuo provoca **olvido**.
+* Los asistentes como ChatGPT añaden SFT y ajuste por preferencias sobre un modelo base, y la diferencia restante es sobre todo de **escala**.
+
+## Ejercicios
+
+1. Quita `capital` del corpus y vuelve a entrenar. ¿Cambia la capacidad del modelo en las demás tareas?
+2. Entrena con `WEIGHTS = [1, 1, 1, 1, 1]`. ¿Cómo cambia la curva de la suma en la sección 6?
+3. Escribe la respuesta de la suma **al revés** (`add 47+38=58`, las unidades primero). ¿Por qué podría facilitar la aritmética a un modelo que escribe de izquierda a derecha?
+4. Sustituye los tokens de caracteres por el tokenizador BPE de la sección 2 entrenado con el corpus. ¿Qué les pasa a la longitud de las secuencias y a la velocidad de entrenamiento?
+5. Añade al corpus una tarea nueva, `max 3 9 2=9`, y vuelve a entrenar. Después, sin volver a entrenar, prueba a dar unos pocos ejemplos en la instrucción con un formato de tarea no visto. ¿Funciona?
+6. Duplica `d` (la anchura del modelo) o `n_layer`, manteniendo fijo el número de pasos. Dibuja la pérdida final frente al número de parámetros: ¿se ve el inicio de una ley de escala?
+
+@@ code
+<<< # start from characters
+>>> # se empieza por los caracteres
+<<< # replace every occurrence of the pair
+>>> # se sustituye cada aparición del par
+<<< # apply merges in the order they were learned
+>>> # se aplican las fusiones en el orden en que se aprendieron
+<<< print("first 15 merges:"
+>>> print("primeras 15 fusiones:"
+<<< characters -> {len(tokens)} tokens after {len(merges)} merges "
+>>> caracteres -> {len(tokens)} tokens tras {len(merges)} fusiones "
+<<< chars per token)\n")
+>>> caracteres por token)\n")
+<<< print("encoding a new sentence:"
+>>> print("codificación de una frase nueva:"
+<<< # returns (prompt, answer); a training line is prompt + answer
+>>> # devuelve (instrucción, respuesta); una línea de entrenamiento es instrucción + respuesta
+<<< # arithmetic is the hardest skill, so it gets more data
+>>> # la aritmética es la habilidad más difícil, así que recibe más datos
+<<< print(f"corpus: {len(corpus):,} characters, {corpus.count(chr(10)):,} lines\n")
+>>> print(f"corpus: {len(corpus):,} caracteres, {corpus.count(chr(10)):,} líneas\n")
+<<< print(f"vocabulary ({len(chars)} tokens): {''.join(chars)!r}")
+>>> print(f"vocabulario ({len(chars)} tokens): {''.join(chars)!r}")
+<<< print(f"context {decode(x[0, :t + 1].tolist())!r:22s} -> target {decode([y[0, t].item()])!r}")
+>>> print(f"contexto {decode(x[0, :t + 1].tolist())!r:22s} -> objetivo {decode([y[0, t].item()])!r}")
+<<< # Q, K and V projections in one matrix
+>>> # proyecciones Q, K y V en una sola matriz
+<<< # KV cache: prepend keys/values of earlier tokens
+>>> # caché KV: se anteponen las claves/valores de los tokens anteriores
+<<< # explicit version, keeps the weights for plotting
+>>> # versión explícita, guarda los pesos para dibujarlos
+<<< # fused kernel, same maths, faster
+>>> # núcleo fusionado, las mismas matemáticas, más rápido
+<<< # weight tying
+>>> # pesos atados
+<<< print(f"GPT with {n_params:,} parameters (GPT-2 small has 124 million, GPT-3 has 175 billion)")
+>>> print(f"GPT con {n_params:,} parámetros (GPT-2 small tiene 124 millones, GPT-3 tiene 175.000 millones)")
+<<< # greedy decoding until a newline: the answer to a task prompt
+>>> # decodificación voraz hasta un salto de línea: la respuesta a una instrucción de tarea
+<<< print(f"initial loss {loss0.item():.3f}   vs   ln(vocab) = {math.log(len(chars)):.3f}")
+>>> print(f"pérdida inicial {loss0.item():.3f}   frente a   ln(vocabulario) = {math.log(len(chars)):.3f}")
+<<< print("untrained answer to 'add 2+2=':"
+>>> print("respuesta sin entrenar a 'add 2+2=':"
+<<< # same test prompts every time
+>>> # las mismas instrucciones de prueba cada vez
+<<< print(f"step {step:5d}  loss {np.mean(losses[-100:]):.3f}  |  {accs}  ({time.time() - t0:.0f}s)", flush=True)
+>>> print(f"paso {step:5d}  pérdida {np.mean(losses[-100:]):.3f}  |  {accs}  ({time.time() - t0:.0f} s)", flush=True)
+<<< axes[0].set_xlabel("step"); axes[0].set_ylabel("loss (50-step average)")
+>>> axes[0].set_xlabel("paso"); axes[0].set_ylabel("pérdida (media de 50 pasos)")
+<<< axes[0].set_title("Pre-training loss: next-character cross-entropy")
+>>> axes[0].set_title("Pérdida de preentrenamiento: entropía cruzada del siguiente carácter")
+<<< axes[1].set_xlabel("step"); axes[1].set_ylabel("held-out accuracy")
+>>> axes[1].set_xlabel("paso"); axes[1].set_ylabel("exactitud con datos reservados")
+<<< axes[1].set_title("Each skill is learned at its own pace")
+>>> axes[1].set_title("Cada habilidad se aprende a su propio ritmo")
+<<< {'✓' if out == a else '✗ expected ' + a}
+>>> {'✓' if out == a else '✗ esperado ' + a}
+<<< f"{'(memorised)' if country in COUNTRIES else '(never seen: hallucinated)'}"
+>>> f"{'(memorizado)' if country in COUNTRIES else '(nunca visto: alucinado)'}"
+<<< "3-digit number (training used 0..99)"
+>>> "número de 3 cifras (el entrenamiento usó 0..99)"
+<<< "10-letter word (training used 3..6)"
+>>> "palabra de 10 letras (el entrenamiento usó 3..6)"
+<<< "9 digits (training used 3..6)"
+>>> "9 dígitos (el entrenamiento usó 3..6)"
+<<< "noun as subject (training subjects were pronouns)"
+>>> "sustantivo como sujeto (en el entrenamiento los sujetos eran pronombres)"
+<<< print(f"{p:32s} -> {out:22s} expected {a:20s} [{why}]")
+>>> print(f"{p:32s} -> {out:22s} esperado {a:20s} [{why}]")
+<<< ax.set_title(f"next character after {prompt!r}" if prompt != "\n" else "first character of a new line (which task?)")
+>>> ax.set_title(f"siguiente carácter tras {prompt!r}" if prompt != "\n" else "primer carácter de una línea nueva (¿qué tarea?)")
+<<< # smallest set reaching top_p
+>>> # el conjunto más pequeño que alcanza top_p
+<<< "greedy (T=0)"
+>>> "voraz (T=0)"
+<<< "T=2.0 (too hot)"
+>>> "T=2.0 (demasiado caliente)"
+<<< # positions that predict each answer digit
+>>> # posiciones que predicen cada dígito de la respuesta
+<<< ax.set_title(f"layer {l} head {h}", fontsize=9)
+>>> ax.set_title(f"capa {l} cabeza {h}", fontsize=9)
+<<< fig.suptitle("Attention from the positions that write each answer digit (rows) to earlier characters (cols)")
+>>> fig.suptitle("Atención desde las posiciones que escriben cada dígito de la respuesta (filas) hacia los caracteres anteriores (columnas)")
+<<< # full recompute every step
+>>> # se recalcula todo en cada paso
+<<< # process the prompt once
+>>> # se procesa la instrucción una sola vez
+<<< # only the new token goes through the model
+>>> # solo el token nuevo pasa por el modelo
+<<< print("identical output:", a == b)
+>>> print("salida idéntica:", a == b)
+<<< print(f"without cache {t_no * 1000:.0f} ms, with KV cache {t_kv * 1000:.0f} ms ({t_no / t_kv:.1f}x faster)")
+>>> print(f"sin caché {t_no * 1000:.0f} ms, con caché KV {t_kv * 1000:.0f} ms ({t_no / t_kv:.1f} veces más rápido)")
+<<< print(f"cache: {len(past)} layers x (keys, values), each of shape {tuple(past[0][0].shape)} = (batch, heads, tokens so far, head_dim)")
+>>> print(f"caché: {len(past)} capas x (claves, valores), cada una con forma {tuple(past[0][0].shape)} = (lote, cabezas, tokens hasta ahora, dim. de cabeza)")
+<<< print(f"fine-tuned both in {time.time() - t0:.0f}s")
+>>> print(f"ambos ajustados en {time.time() - t0:.0f} s")
+<<< print(f"held-out ES→EN accuracy:  from pre-trained {acc_pre:.0%}   from scratch {acc_scratch:.0%}")
+>>> print(f"exactitud ES→EN con datos reservados:  desde el preentrenado {acc_pre:.0%}   desde cero {acc_scratch:.0%}")
+<<< label="starting from pre-trained GPT")
+>>> label="partiendo del GPT preentrenado")
+<<< label="starting from random weights")
+>>> label="partiendo de pesos aleatorios")
+<<< plt.xlabel("fine-tuning step"); plt.ylabel("loss")
+>>> plt.xlabel("paso de ajuste fino"); plt.ylabel("pérdida")
+<<< plt.title("Same data, same steps: pre-training gives a head start")
+>>> plt.title("Mismos datos, mismos pasos: el preentrenamiento da ventaja")
+<<< print(f"  {p}{complete(ft_model, p):24s} expected: {a}")
+>>> print(f"  {p}{complete(ft_model, p):24s} esperado: {a}")
+<<< print(f"{'task':8s} {'before fine-tune':>17s} {'after':>8s}")
+>>> print(f"{'tarea':8s} {'antes del ajuste':>17s} {'después':>8s}")
+<<< print(f"{'model':14s} {'params':>10s} {'tokens':>10s} {'tokens/param':>13s} {'train FLOPs (6ND)':>18s} {'× ours':>10s}")
+>>> print(f"{'modelo':14s} {'parámetros':>10s} {'tokens':>10s} {'tokens/parám.':>13s} {'FLOPs entren. (6ND)':>20s} {'× el nuestro':>13s}")
+<<< print(f"{name:14s} {N:10.2e} {D:10.2e} {D / N:13.1f} {6 * N * D:18.2e} {6 * N * D / ours:10.1e}")
+>>> print(f"{name:14s} {N:10.2e} {D:10.2e} {D / N:13.1f} {6 * N * D:20.2e} {6 * N * D / ours:13.1e}")

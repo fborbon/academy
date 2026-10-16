@@ -1,0 +1,308 @@
+@@ file 03_entrenar_bien_redes_profundas.ipynb
+
+@@ md 0730bfdf17
+# 03 · Entrenar bien redes profundas: generalización, regularización y estrategia
+
+El notebook 02 mostró cómo *aprende* una red: la retropropagación calcula los gradientes y un optimizador los sigue cuesta abajo. Esa es la mitad fácil. La mitad difícil es que una pérdida de entrenamiento baja no es el objetivo. El objetivo es una red que funcione con datos que **nunca ha visto**.
+
+Este notebook trata del oficio que hay entre "el código se ejecuta" y "el modelo es bueno":
+
+| Sección | Pregunta | Herramientas |
+|---|---|---|
+| 1 | ¿Cómo mido lo que de verdad me importa? | particiones de entrenamiento / validación / prueba |
+| 2-3 | ¿Mi modelo es demasiado simple o demasiado complejo? | barrido de capacidad, sesgo y varianza, curvas de aprendizaje |
+| 4 | Mi modelo memoriza el conjunto de entrenamiento. ¿Y ahora qué? | decaimiento de pesos L2, dropout, parada temprana |
+| 5 | Las redes profundas entrenan lento o divergen. ¿Por qué? | normalización por lotes |
+| 6 | ¿Qué tamaño de lote y qué calendario de tasa de aprendizaje? | minilotes, calentamiento, decaimiento coseno |
+| 7 | ¿Cómo elijo los hiperparámetros? | búsqueda en cuadrícula frente a búsqueda aleatoria |
+| 8 | ¿En qué debería trabajar ahora? | análisis de errores, desajuste entre entrenamiento y validación |
+
+Todo se ejecuta en una CPU en pocos minutos, con dos conjuntos de datos que vienen incluidos en scikit-learn: las "lunas" en 2D (para ver las fronteras de decisión) y dígitos manuscritos de 8×8.
+
+@@ md b4561913a6
+## 1. Entrenamiento, validación y prueba: medir lo que importa
+
+Un modelo solo es útil con datos que no ha visto, así que reservamos una parte de los datos. En la práctica necesitamos **tres** conjuntos:
+
+| Conjunto | Se usa para | Regla |
+|---|---|---|
+| **entrenamiento** | ajustar los pesos | el optimizador lo ve en cada paso |
+| **validación** (dev) | elegir *todo lo demás*: arquitectura, tasa de aprendizaje, regularización, cuándo parar | míralo tantas veces como quieras |
+| **prueba** (test) | una estimación final y sin sesgo | míralo **una sola vez**, al final |
+
+¿Por qué no basta con entrenamiento y prueba? Porque cada decisión que tomas mirando una puntuación es una forma de entrenamiento. Prueba 50 configuraciones, quédate con la mejor puntuación en prueba, y esa puntuación será optimista: has ajustado el conjunto de prueba a mano. El conjunto de validación absorbe ese optimismo para que el de prueba siga siendo honesto.
+
+Dos reglas más de la práctica: los conjuntos de validación y prueba deben venir de la **misma distribución que los datos que verás en producción** (la sección 8 muestra qué pasa cuando no es así), y con conjuntos de datos grandes pueden ser un porcentaje pequeño de los datos: 10.000 ejemplos de validación miden la exactitud con un margen de unos ±0,3 %, tengas 100 mil o 100 millones de ejemplos de entrenamiento.
+
+@@ md 4914b58a48
+## 2. Subajuste y sobreajuste
+
+La **capacidad** es qué tan complicada puede ser la función que un modelo es capaz de representar. Con muy poca, el modelo no puede captar el patrón (**subajuste**, o **sesgo** alto). Con demasiada y pocos datos, se ajusta al ruido de la muestra de entrenamiento concreta (**sobreajuste**, o **varianza** alta).
+
+El conjunto de las dos lunas lo hace visible. Entrenamos MLP cada vez más anchos con 200 puntos ruidosos, durante el tiempo suficiente para que cada uno se ajuste a los datos de entrenamiento lo mejor que pueda, y miramos el error de entrenamiento y el de validación.
+
+@@ md b7002d8aac
+La red más ancha talla pequeñas islas alrededor de puntos ruidosos concretos: ha memorizado la muestra de entrenamiento. La más estrecha está tan limitada que no puede representar la curva en absoluto: aquí su única unidad ReLU quedó inactiva ("muerta", notebook 01), así que predice la misma clase casi en todas partes y se queda en torno a un 50 % de error.
+
+## 3. Diagnosticar el sesgo y la varianza
+
+Rara vez se puede dibujar la frontera de decisión, pero siempre se pueden comparar cuatro números:
+
+| | Ejemplo A | Ejemplo B | Ejemplo C | Ejemplo D |
+|---|---|---|---|---|
+| error de referencia (el mejor alcanzable, p. ej. humano) | 1 % | 1 % | 1 % | 1 % |
+| error de entrenamiento | 1,5 % | 12 % | 12 % | 1,5 % |
+| error de validación | 11 % | 13 % | 25 % | 2 % |
+| diagnóstico | **varianza alta** | **sesgo alto** | **ambos** | bien |
+
+* **Sesgo evitable** = error de entrenamiento − error de referencia. Se corrige con un modelo más grande, más entrenamiento o una arquitectura mejor.
+* **Varianza** = error de validación − error de entrenamiento. Se corrige con más datos, regularización (sección 4), aumento de datos o un modelo más pequeño.
+
+Las **curvas de aprendizaje** dan una segunda vista: se entrena el mismo modelo con porciones cada vez mayores del conjunto de entrenamiento. Si las dos curvas han convergido en un error alto, más datos no ayudarán (sesgo). Si hay una brecha grande que todavía se está cerrando, sí ayudarán.
+
+@@ md 9d58cb87a4
+El error de entrenamiento es cero en todos los tamaños: esta red tiene capacidad de sobra. El error de validación sigue bajando a medida que crecen los datos, así que este modelo está limitado por la **varianza**, y más datos o regularización son la palanca correcta.
+
+## 4. Regularización: la caja de herramientas contra el sobreajuste
+
+Para que el sobreajuste sea evidente, dejamos a propósito sin datos a una red grande: 64 → 512 → 512 → 10 (unos 300.000 parámetros) entrenada con solo **200** dígitos. Después probamos los remedios habituales, uno a uno.
+
+**Regularización L2 / decaimiento de pesos.** Se suma $\frac{\lambda}{2}\sum w^2$ a la pérdida o, lo que es equivalente, se encoge un poco cada peso en cada paso: $w \leftarrow w - \eta(\nabla_w \mathcal{L} + \lambda w)$. Los pesos grandes permiten a la red construir funciones abruptas y onduladas; mantenerlos pequeños mantiene la función suave. Con Adam, la versión "desacoplada" (**AdamW**, la que usamos aquí) funciona mejor que sumar la penalización a la pérdida.
+
+**Dropout** (Srivastava et al., 2014). Durante el entrenamiento, cada unidad oculta se pone a cero con probabilidad $p$ y las supervivientes se escalan por $1/(1-p)$ para que la activación esperada no cambie. Ninguna unidad puede depender de que otra unidad concreta esté presente, así que la red aprende características redundantes y más robustas. Se comporta como entrenar un enorme conjunto de redes adelgazadas que comparten pesos. En la prueba, el dropout se desactiva.
+
+**Parada temprana.** Se vigila la exactitud de validación durante el entrenamiento y se conservan los pesos de la mejor época. Gratis, simple y casi siempre vale la pena.
+
+@@ md 7bbd713e22
+Cada remedio gana alrededor de un punto de exactitud de validación, y combinados ganan más. Las ganancias son modestas aquí porque los dígitos de 8×8 son un problema fácil incluso para una red sobreajustada; con datos más difíciles y más ruido, las mismas herramientas suelen valer varios puntos. La gráfica de la derecha muestra el mecanismo: sin regularización, la pérdida de entrenamiento se va hacia cero (memorización); con ella, se evita que la red se vuelva demasiado confiada sobre los puntos de entrenamiento. Fíjate en que la exactitud de entrenamiento se queda en el 100 % en todas las filas: la regularización no impide que la red se ajuste al conjunto de entrenamiento, cambia *cómo* se ajusta.
+
+Otros regularizadores que encontrarás: el **aumento de datos** (notebook 04, a menudo el más fuerte de todos en imágenes), el **suavizado de etiquetas**, los modelos más pequeños y, simplemente, más datos.
+
+## 5. Normalización por lotes
+
+La distribución de entrada de cada capa cambia a medida que aprenden las capas anteriores, y en una red profunda los cambios pequeños se acumulan. Las activaciones mal escaladas empujan a las unidades a la saturación (notebook 01) y obligan a usar una tasa de aprendizaje pequeña.
+
+La **normalización por lotes** (batch normalization; Ioffe y Szegedy, 2015) normaliza cada unidad sobre el minilote actual y después deja que la red la reescale con dos parámetros aprendidos por unidad:
+
+$$ \hat z = \frac{z - \mu_{\text{lote}}}{\sqrt{\sigma^2_{\text{lote}} + \epsilon}}, \qquad \text{BN}(z) = \gamma \hat z + \beta $$
+
+En la prueba puede haber un solo ejemplo y ningún lote, así que BN usa **medias móviles** de $\mu$ y $\sigma^2$ recogidas durante el entrenamiento. Olvidarse de cambiar entre `model.train()` y `model.eval()` es un error clásico justamente por eso.
+
+@@ md 446e011242
+El experimento: un MLP de **10 capas** con activaciones sigmoides sobre los dígitos, entrenado con la misma tasa de aprendizaje con y sin BN. Las sigmoides se saturan con facilidad, lo que hace difícil entrenar redes sigmoides profundas: el peor caso, para el que se diseñó BN.
+
+@@ md 61dbe6478a
+La normalización por lotes también tiene un ligero efecto regularizador (la normalización de cada ejemplo depende del lote aleatorio en el que cae). Los transformers usan la muy parecida **LayerNorm** (notebook 07), que normaliza sobre las características de un solo ejemplo en lugar de sobre el lote, así que funciona igual en entrenamiento y en inferencia y no depende del tamaño del lote.
+
+## 6. Minilotes y calendarios de tasa de aprendizaje
+
+**Tamaño del lote.** El descenso de gradiente con el lote completo calcula el gradiente exacto pero da un solo paso por época. El descenso de gradiente estocástico puro (lote de 1) da muchos pasos baratos y ruidosos. Los minilotes (normalmente de 32 a 1024) están en medio: ejemplos suficientes para aprovechar el hardware vectorizado, pasos suficientes por época para avanzar rápido y un poco de ruido en el gradiente que a menudo ayuda a generalizar.
+
+@@ md 9b962d125e
+Con el mismo número de épocas (la misma cantidad de datos vistos), el entrenamiento con el lote completo va muy por detrás porque solo hizo 20 actualizaciones. Los lotes pequeños avanzaron más, pero cada época cuesta más tiempo real en hardware paralelo. El entrenamiento con lotes grandes suele necesitar una tasa de aprendizaje mayor para compensar.
+
+**Calendarios de tasa de aprendizaje.** Una tasa grande avanza rápido al principio pero después rebota alrededor del mínimo; una pequeña es precisa pero lenta. Los calendarios consiguen ambas cosas:
+
+* **decaimiento escalonado:** dividir la tasa de aprendizaje entre 10 en puntos fijos;
+* **calentamiento + decaimiento coseno:** subir linealmente durante el primer pequeño porcentaje de pasos (protegiendo a la red recién inicializada, y a las estadísticas todavía poco fiables de Adam, de actualizaciones enormes al principio) y después seguir media onda de coseno hasta cero. Es lo habitual en los transformers y en los modelos tipo GPT (notebook 08).
+
+@@ md da5e68f6eb
+Con una tasa base demasiado alta para estabilizarse, el calendario constante sigue siendo ruidoso; los calendarios con decaimiento usan la misma tasa alta al principio y después se asientan en una pérdida mucho menor.
+
+## 7. Elegir hiperparámetros: búsqueda en cuadrícula frente a búsqueda aleatoria
+
+Una red tiene muchos mandos (tasa de aprendizaje, decaimiento de pesos, anchura, dropout, tamaño de lote…) y **no todos son igual de importantes**. La tasa de aprendizaje casi siempre es la que más importa.
+
+La **búsqueda en cuadrícula** prueba todas las combinaciones de unos pocos valores por mando. La **búsqueda aleatoria** muestrea cada mando de forma independiente. Bergstra y Bengio (2012) explicaron por qué la búsqueda aleatoria suele ganar con el mismo presupuesto: con 9 pruebas en una cuadrícula de 3×3 solo pruebas **3** tasas de aprendizaje distintas; con 9 pruebas aleatorias pruebas 9. Cuando un mando domina, la búsqueda aleatoria lo explora con el triple de densidad.
+
+Dos reglas prácticas: muestrea los parámetros de tipo escala (tasa de aprendizaje, decaimiento de pesos) **en escala logarítmica** y elige con el conjunto de **validación**, nunca con el de prueba.
+
+@@ md efaf7874f6
+Con 9 pruebas, aquí ambas estrategias dieron por casualidad con configuraciones igual de buenas, pero mira la segunda gráfica: la cuadrícula solo probó tres tasas de aprendizaje, una de ellas demasiado alta, mientras que la búsqueda aleatoria cubrió el rango útil. Con más mandos, o con una zona óptima más estrecha, esa cobertura es la que hace que la búsqueda aleatoria gane en promedio (el ejercicio 4 lo mide). En proyectos reales el presupuesto es mayor y la búsqueda más inteligente (búsqueda aleatoria de lo grueso a lo fino, optimización bayesiana o, sencillamente, copiar los hiperparámetros de un modelo publicado de tamaño parecido), pero los principios se mantienen: escalas logarítmicas, aleatoria mejor que cuadrícula, elegir con validación y reportar la prueba una sola vez.
+
+## 8. Estrategia: ¿en qué debería trabajar ahora?
+
+Muchos meses perdidos en aprendizaje automático vienen de mejorar lo que no era. Dos hábitos ayudan.
+
+### Análisis de errores
+
+Mira los errores del conjunto de validación y **cuéntalos** por categoría antes de decidir qué corregir. Si el 40 % de los errores son una confusión y el 2 % otra, la primera merece una semana de trabajo y la segunda no (su *techo* es una mejora del 2 %, por perfectamente que la resuelvas). Lleva una hora y a menudo cambia el plan.
+
+@@ md 5738932d8e
+Con solo un puñado de errores de validación, ninguna categoría domina, y eso ya es un hallazgo en sí mismo: este modelo está cerca del punto en el que la siguiente mejora necesita **más datos de validación** incluso para poder medirse. El análisis de errores rinde más cuando hay decenas o cientos de errores que clasificar.
+
+### Cuando los datos de entrenamiento y los reales no coinciden
+
+A menudo los datos que puedes reunir en grandes cantidades no son exactamente los que encontrarás en producción: fotos de la web frente a fotos de la cámara de un teléfono, audio de estudio frente a un coche ruidoso o, aquí, **dígitos escaneados limpios para entrenar** frente a **dígitos borrosos y ruidosos de un escáner barato** en producción.
+
+Regla número uno: los conjuntos de validación y prueba deben parecerse a **producción**, porque ese es el objetivo. Pero entonces la brecha entre el error de entrenamiento y el de validación mezcla dos causas: la varianza *y* el cambio de distribución. Para separarlas, se reserva un conjunto de **entrenamiento-validación** (train-dev): misma distribución que el entrenamiento, pero sin entrenar con él.
+
+| Brecha | Significado |
+|---|---|
+| error de entrenamiento − error de referencia | sesgo evitable |
+| error de train-dev − error de entrenamiento | varianza |
+| error de validación − error de train-dev | **desajuste de datos** |
+
+@@ md 0ff0cbb92f
+El diagnóstico no deja dudas: la varianza es pequeña y el problema es el desajuste de datos. Más datos limpios o más regularización no ayudarían. Lo que ayuda es hacer que los datos de entrenamiento **se parezcan más a producción**. Aquí sabemos más o menos qué hace el escáner, así que podemos **sintetizar** datos de entrenamiento parecidos a los de producción a partir de las imágenes limpias (la misma idea que el aumento de datos). En proyectos reales, en cambio, podrías reunir una pequeña cantidad de datos reales de producción y añadirlos al conjunto de entrenamiento.
+
+@@ md a2fa39818e
+Una advertencia de la práctica: los datos sintéticos solo corrigen el desajuste que *modelaste*. Si el escáner real también gira las páginas y nuestra simulación no, el modelo seguirá fallando con las rotaciones, e incluso puede sobreajustarse a las peculiaridades de la simulación. Confirma siempre con datos reales de producción en los conjuntos de validación y prueba.
+
+## Ideas clave
+
+* El objetivo es un error bajo con datos **no vistos**. Usa entrenamiento / validación / prueba, decide todo con validación y reporta la prueba una sola vez.
+* Compara el error de entrenamiento con una referencia y con el error de validación para decidir entre soluciones para el **sesgo** (modelo más grande, más entrenamiento) y para la **varianza** (datos, regularización).
+* El **decaimiento de pesos, el dropout y la parada temprana** combaten el sobreajuste y se combinan bien.
+* La **normalización por lotes** mantiene bien escaladas las activaciones y permite entrenar redes profundas con tasas de aprendizaje más altas.
+* **Minilotes** más un **calendario con calentamiento y decaimiento** son la receta por defecto para entrenar.
+* Busca hiperparámetros **de forma aleatoria y en escalas logarítmicas**; la tasa de aprendizaje es la que más importa.
+* Haz **análisis de errores** antes de decidir qué corregir, y usa un conjunto **train-dev** para separar la varianza del **desajuste de datos**.
+
+## Ejercicios
+
+1. En la sección 2, repite el barrido de capacidad con 2.000 puntos de entrenamiento en lugar de 200. ¿Dónde empieza ahora el sobreajuste?
+2. En la sección 4, barre el decaimiento de pesos sobre `[0.01, 0.1, 0.5, 2, 5]`. Dibuja la exactitud de validación frente al decaimiento: ¿dónde está la zona óptima y qué pasa más allá?
+3. Sustituye `nn.BatchNorm1d` por `nn.LayerNorm` en la red sigmoide de 10 capas. ¿Ayuda igual?
+4. Dale 25 pruebas a la búsqueda aleatoria y otras 25 a la búsqueda en cuadrícula. Repite con 5 semillas distintas para el muestreador aleatorio: ¿cuántas veces gana la búsqueda aleatoria?
+5. Haz que el escáner también desplace cada imagen un píxel en una dirección aleatoria, pero deja sin cambios los datos de entrenamiento sintetizados. ¿Qué le pasa a la cifra del desajuste de datos?
+
+@@ code
+<<< # a reusable training loop: Adam (+ optional decoupled weight decay), mini-batches, history of train/dev accuracy
+>>> # un bucle de entrenamiento reutilizable: Adam (+ decaimiento de pesos desacoplado opcional), minilotes, historial de exactitud de entrenamiento/validación
+<<< # 1,797 images, flattened to 64 inputs
+>>> # 1.797 imágenes, aplanadas a 64 entradas
+<<< print(f"train {len(ytr)}   dev {len(ydev)}   test {len(yte)}   (60/20/20, stratified by digit)")
+>>> print(f"entrenamiento {len(ytr)}   validación {len(ydev)}   prueba {len(yte)}   (60/20/20, estratificado por dígito)")
+<<< print(f"trained {len(widths)} models in {time.time() - t0:.0f}s")
+>>> print(f"{len(widths)} modelos entrenados en {time.time() - t0:.0f} s")
+<<< label="train error")
+>>> label="error de entrenamiento")
+<<< label="dev error")
+>>> label="error de validación")
+<<< plt.xlabel("hidden units per layer (capacity)"); plt.ylabel("error rate")
+>>> plt.xlabel("unidades ocultas por capa (capacidad)"); plt.ylabel("tasa de error")
+<<< plt.title("Too simple → both errors high.  Too complex → the gap opens.")
+>>> plt.title("Demasiado simple → ambos errores altos.  Demasiado complejo → se abre la brecha.")
+<<< ["underfits (high bias)", "about right", "overfits (high variance)"]
+>>> ["subajusta (sesgo alto)", "más o menos bien", "sobreajusta (varianza alta)"]
+<<< f"width {w}: {label}")
+>>> f"anchura {w}: {label}")
+<<< plt.xlabel("training examples"); plt.ylabel("error rate"); plt.title("Learning curve: the gap closes as data grows")
+>>> plt.xlabel("ejemplos de entrenamiento"); plt.ylabel("tasa de error"); plt.title("Curva de aprendizaje: la brecha se cierra al crecer los datos")
+<<< print(f"{n:5d} examples   train error {a:5.1%}   dev error {b:5.1%}")
+>>> print(f"{n:5d} ejemplos   error de entrenamiento {a:5.1%}   error de validación {b:5.1%}")
+<<< # "inverted" dropout, written by hand; behaves exactly like nn.Dropout
+>>> # dropout "invertido", escrito a mano; se comporta exactamente como nn.Dropout
+<<< # at test time: do nothing
+>>> # en la prueba: no hace nada
+<<< # rescale so E[output] = x
+>>> # reescalado para que E[salida] = x
+<<< print("training mode:", d(x).numpy().round(1), "  mean over many draws:", round(d(torch.ones(10000, 10)).mean().item(), 3))
+>>> print("modo entrenamiento:", d(x).numpy().round(1), "  media sobre muchas extracciones:", round(d(torch.ones(10000, 10)).mean().item(), 3))
+<<< d.eval(); print("eval mode    :", d(x).numpy().round(1))
+>>> d.eval(); print("modo evaluación   :", d(x).numpy().round(1))
+<<< # the starved training set
+>>> # el conjunto de entrenamiento escaso
+<<< "no regularisation"
+>>> "sin regularización"
+<<< "L2 weight decay"
+>>> "decaimiento de pesos L2"
+<<< "early stopping"
+>>> "parada temprana"
+<<< "dropout + L2 + early"
+>>> "dropout + L2 + parada"
+<<< print(f"trained {len(configs)} models in {time.time() - t0:.0f}s\n")
+>>> print(f"{len(configs)} modelos entrenados en {time.time() - t0:.0f} s\n")
+<<< print(f"{'':24s} {'train acc':>10s} {'dev acc':>9s}")
+>>> print(f"{'':24s} {'exact. entr.':>12s} {'exact. val.':>11s}")
+<<< f"   (best epoch {reg_hist[name]['best_epoch'] + 1})"
+>>> f"   (mejor época {reg_hist[name]['best_epoch'] + 1})"
+<<< print(f"{name:24s} {accuracy(m, Xs, ys):10.1%} {accuracy(m, Xdev, ydev):9.1%}{extra}")
+>>> print(f"{name:24s} {accuracy(m, Xs, ys):12.1%} {accuracy(m, Xdev, ydev):11.1%}{extra}")
+<<< axes[0].set_xlabel("epoch"); axes[0].set_ylabel("dev accuracy"); axes[0].set_title("Dev accuracy during training")
+>>> axes[0].set_xlabel("época"); axes[0].set_ylabel("exactitud de validación"); axes[0].set_title("Exactitud de validación durante el entrenamiento")
+<<< axes[1].set_xlabel("step"); axes[1].set_ylabel("training loss (smoothed)"); axes[1].set_yscale("log"); axes[1].set_title("Regularisation keeps the training loss from collapsing to zero")
+>>> axes[1].set_xlabel("paso"); axes[1].set_ylabel("pérdida de entrenamiento (suavizada)"); axes[1].set_yscale("log"); axes[1].set_title("La regularización impide que la pérdida de entrenamiento caiga a cero")
+<<< # remember the statistics for test time
+>>> # se guardan las estadísticas para la prueba
+<<< print("input mean/std per unit :"
+>>> print("media/desv. de entrada por unidad:"
+<<< print("after BN mean/std       :"
+>>> print("media/desv. tras BN              :"
+<<< print("matches nn.BatchNorm1d  :"
+>>> print("coincide con nn.BatchNorm1d      :"
+<<< ("10 layers, no BN", False), ("10 layers, with BN", True)
+>>> ("10 capas, sin BN", False), ("10 capas, con BN", True)
+<<< print(f"{name:20s} dev accuracy after 30 epochs: {bn_hist[name]['dev'][-1]:.1%}  ({time.time() - t0:.0f}s)")
+>>> print(f"{name:20s} exactitud de validación tras 30 épocas: {bn_hist[name]['dev'][-1]:.1%}  ({time.time() - t0:.0f} s)")
+<<< plt.xlabel("epoch"); plt.ylabel("dev accuracy"); plt.title("Deep sigmoid network: batch norm makes it trainable")
+>>> plt.xlabel("época"); plt.ylabel("exactitud de validación"); plt.title("Red sigmoide profunda: la normalización por lotes la hace entrenable")
+<<< print(f"{'batch size':>10s} {'steps/epoch':>12s} {'dev acc after 20 epochs':>24s} {'time':>6s}")
+>>> print(f"{'tamaño lote':>11s} {'pasos/época':>12s} {'exact. val. tras 20 épocas':>27s} {'tiempo':>7s}")
+<<< print(f"{b:10d} {math.ceil(len(ytr) / b):12d} {batch_hist[b]['dev'][-1]:24.1%} {time.time() - t0:5.1f}s")
+>>> print(f"{b:11d} {math.ceil(len(ytr) / b):12d} {batch_hist[b]['dev'][-1]:27.1%} {time.time() - t0:6.1f}s")
+<<< "constant":
+>>> "constante":
+<<< "step decay":
+>>> "decaimiento escalonado":
+<<< "warm-up + cosine":
+>>> "calentamiento + coseno":
+<<< label=f"{name} (dev {h['dev'][-1]:.1%})")
+>>> label=f"{name} (val. {h['dev'][-1]:.1%})")
+<<< axes[0].set_xlabel("step"); axes[0].set_ylabel("learning rate"); axes[0].set_title("Schedules")
+>>> axes[0].set_xlabel("paso"); axes[0].set_ylabel("tasa de aprendizaje"); axes[0].set_title("Calendarios")
+<<< axes[1].set_xlabel("step"); axes[1].set_ylabel("training loss (smoothed)"); axes[1].set_yscale("log"); axes[1].set_title("Training loss with a deliberately high base learning rate")
+>>> axes[1].set_xlabel("paso"); axes[1].set_ylabel("pérdida de entrenamiento (suavizada)"); axes[1].set_yscale("log"); axes[1].set_title("Pérdida de entrenamiento con una tasa base deliberadamente alta")
+<<< "grid"
+>>> "cuadrícula"
+<<< "random"
+>>> "aleatoria"
+<<< label=f"best: dev {best[2]:.1%}")
+>>> label=f"mejor: val. {best[2]:.1%}")
+<<< ax.set_xlabel("learning rate"); ax.set_ylabel("weight decay")
+>>> ax.set_xlabel("tasa de aprendizaje"); ax.set_ylabel("decaimiento de pesos")
+<<< ax.set_title(f"{name} search, 9 trials, {len(set(round(r[0], 12) for r in res))} distinct learning rates")
+>>> ax.set_title(f"búsqueda {name}, 9 pruebas, {len(set(round(r[0], 12) for r in res))} tasas de aprendizaje distintas")
+<<< plt.colorbar(sc, ax=axes, label="dev accuracy")
+>>> plt.colorbar(sc, ax=axes, label="exactitud de validación")
+<<< label="dev accuracy along the learning-rate axis")
+>>> label="exactitud de validación a lo largo del eje de la tasa de aprendizaje")
+<<< label=f"{name} trials")
+>>> label=f"pruebas {name}")
+<<< plt.xlabel("learning rate"); plt.ylabel("dev accuracy"); plt.legend(); plt.grid(alpha=0.3); plt.title("The important knob, sampled by each strategy")
+>>> plt.xlabel("tasa de aprendizaje"); plt.ylabel("exactitud de validación"); plt.legend(); plt.grid(alpha=0.3); plt.title("El mando importante, muestreado por cada estrategia")
+<<< print(f"{name:6s} best: lr={lr:.2e} wd={wd:.2e}  dev {dev:.1%}  →  test {accuracy(m, Xte, yte):.1%} (reported once)")
+>>> print(f"{name:10s} mejor: lr={lr:.2e} wd={wd:.2e}  val. {dev:.1%}  →  prueba {accuracy(m, Xte, yte):.1%} (reportada una vez)")
+<<< print(f"dev accuracy {accuracy(model, Xdev, ydev):.1%}: {len(wrong)} mistakes out of {len(ydev)}\n")
+>>> print(f"exactitud de validación {accuracy(model, Xdev, ydev):.1%}: {len(wrong)} errores de {len(ydev)}\n")
+<<< print("most common confusions (true → predicted), as a share of all mistakes:")
+>>> print("confusiones más frecuentes (real → predicho), como proporción de todos los errores:")
+<<< plt.suptitle("Dev-set mistakes: look at them before fixing anything", y=1.08)
+>>> plt.suptitle("Errores en validación: míralos antes de corregir nada", y=1.08)
+<<< # simulate a cheap scanner: blur, faded ink and speckle noise
+>>> # simula un escáner barato: desenfoque, tinta desvaída y ruido moteado
+<<< # 3x3 blur
+>>> # desenfoque 3x3
+<<< # faded ink
+>>> # tinta desvaída
+<<< # speckle
+>>> # moteado
+<<< # training data: clean (plus a held-out train-dev slice of the same clean distribution)
+>>> # datos de entrenamiento: limpios (más una porción train-dev reservada, de la misma distribución limpia)
+<<< # dev and test: production data, i.e. scanned
+>>> # validación y prueba: datos de producción, es decir, escaneados
+<<< axes[0, 0].set_title("clean (train)", loc="left", fontsize=9); axes[1, 0].set_title("scanned (production)", loc="left", fontsize=9)
+>>> axes[0, 0].set_title("limpios (entrenamiento)", loc="left", fontsize=9); axes[1, 0].set_title("escaneados (producción)", loc="left", fontsize=9)
+<<< print(f"{label}\n  train {e_tr:5.1%}   train-dev {e_trdev:5.1%}   dev (scanned) {e_dev:5.1%}")
+>>> print(f"{label}\n  entrenamiento {e_tr:5.1%}   train-dev {e_trdev:5.1%}   validación (escaneados) {e_dev:5.1%}")
+<<< print(f"  → variance {e_trdev - e_tr:+.1%}   data mismatch {e_dev - e_trdev:+.1%}")
+>>> print(f"  → varianza {e_trdev - e_tr:+.1%}   desajuste de datos {e_dev - e_trdev:+.1%}")
+<<< "trained on clean digits only:"
+>>> "entrenado solo con dígitos limpios:"
+<<< # clean + two synthetic "scanned" copies
+>>> # limpios + dos copias "escaneadas" sintéticas
+<<< "trained on clean + synthetic scanned digits:"
+>>> "entrenado con dígitos limpios + escaneados sintéticos:"
+<<< print(f"\nfinal check on the untouched scanned TEST set: clean-only {accuracy(clean_model, Xs_te, yte):.1%}  vs  with synthesis {accuracy(aug_model, Xs_te, yte):.1%}")
+>>> print(f"\ncomprobación final en el conjunto de PRUEBA escaneado sin tocar: solo limpios {accuracy(clean_model, Xs_te, yte):.1%}  frente a  con síntesis {accuracy(aug_model, Xs_te, yte):.1%}")

@@ -1,0 +1,349 @@
+@@ file 07_transformer.ipynb
+
+@@ md a939a4c765
+# 07 · Construir un transformer: atención y redes de propagación hacia adelante
+
+En 2017, *"Attention Is All You Need"* (Vaswani et al.) eliminó por completo la recurrencia. Un transformer es una pila de bloques idénticos, cada uno formado por solo dos subcapas:
+
+1. **Autoatención multicabeza:** cada token reúne información de todos los demás tokens (comunicación).
+2. **Red de propagación hacia adelante (MLP):** cada token procesa lo que reunió, por separado (cálculo).
+
+Ambas van envueltas en **conexiones residuales** y **normalización de capa**. Este notebook construye cada pieza desde cero, primero en NumPy para ver cada número y después en PyTorch para entrenar un modelo real y observar cómo la atención propaga la información a través de las capas.
+
+**Contenido**
+1. ¿Por qué transformers?
+2. Embeddings de tokens y codificaciones posicionales
+3. Atención de producto escalar escalado, paso a paso
+4. Máscaras: causal y de relleno
+5. Atención multicabeza
+6. La red de propagación hacia adelante (MLP)
+7. El flujo residual y LayerNorm: un bloque transformer completo
+8. Un transformer codificador-decodificador completo en PyTorch, entrenado para ordenar números
+9. Cómo se propaga la atención: mapas por capa, rollout de atención y saliencia por gradiente
+10. Dónde viven los parámetros y qué cambiaron los transformers modernos
+11. Ejercicios
+
+@@ md 73d8bc5111
+## 1. ¿Por qué transformers?
+
+| | RNN (notebook 05) | Transformer |
+|---|---|---|
+| Cómo ve el token *i* al token *j* | a través de $|i-j|$ pasos recurrentes | **directamente**, en un solo paso de atención |
+| Paralelismo en el entrenamiento | secuencial en el tiempo | todas las posiciones a la vez (ideal para GPU) |
+| Dependencias de largo alcance | los gradientes se desvanecen tras muchos pasos | longitud de camino 1 |
+| Coste por capa | $O(n\,d^2)$ | $O(n^2 d)$ (atención) + $O(n\,d^2)$ (MLP) |
+
+El coste cuadrático en la longitud de la secuencia $n$ es el precio; el paralelismo y las conexiones directas son la recompensa. Ese intercambio hizo posible entrenar con billones de tokens, que es lo que hace GPT (notebook 08).
+
+## 2. Embeddings de tokens y codificaciones posicionales
+
+El texto se divide en **tokens**, cada uno se asigna a un identificador entero, y cada identificador a un vector aprendido de tamaño $d_{model}$ mediante una **tabla de embeddings** (una matriz con una fila por token).
+
+La atención por sí sola no tiene noción de orden: trata la entrada como un *conjunto*. Lo demostramos más abajo. Por eso **sumamos** una señal posicional a cada embedding. El artículo original usaba sinusoides fijas con frecuencias espaciadas geométricamente:
+
+$$ PE_{(pos,\,2i)} = \sin\!\left(\frac{pos}{10000^{2i/d}}\right), \qquad PE_{(pos,\,2i+1)} = \cos\!\left(\frac{pos}{10000^{2i/d}}\right) $$
+
+Las dimensiones bajas oscilan rápido (posición fina) y las altas despacio (posición gruesa), como las manecillas de un reloj. Una propiedad útil: el producto escalar $PE_{pos}\cdot PE_{pos+k}$ solo depende del desfase $k$, lo que hace fácil detectar posiciones relativas.
+
+@@ md 81089bdeb7
+## 3. Atención de producto escalar escalado, paso a paso
+
+El vector $x_i$ de cada token se proyecta de tres formas con matrices aprendidas:
+
+* **Consulta** (query) $q_i = x_i W_Q$: "¿qué estoy buscando?"
+* **Clave** (key) $k_j = x_j W_K$: "¿qué contengo?" (un anuncio)
+* **Valor** (value) $v_j = x_j W_V$: "¿qué entregaré si me eliges?"
+
+El token $i$ compara su consulta con todas las claves, convierte las puntuaciones en pesos con softmax y toma la media ponderada de los valores:
+
+$$ \text{Atención}(Q,K,V) = \text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right)V $$
+
+Es una **búsqueda en diccionario suave y derivable**: en lugar de devolver el valor de la única clave que coincide, devuelve una mezcla ponderada según lo bien que coincide cada clave.
+
+Ejecutémosla sobre una frase de 6 tokens con pesos aleatorios para que cada paso intermedio sea visible.
+
+@@ md 1e882d0ed0
+### ¿Por qué dividir entre $\sqrt{d_k}$?
+
+Si las entradas de $q$ y $k$ tienen varianza unitaria, $q\cdot k$ es una suma de $d_k$ términos y tiene varianza $d_k$. Con un $d_k$ grande las puntuaciones se vuelven enormes, softmax colapsa a un vector one-hot y su gradiente se vuelve casi cero (el problema de saturación del notebook 01). Dividir entre $\sqrt{d_k}$ devuelve la varianza a 1.
+
+@@ md a0ab4f7e17
+### La atención sin posiciones no ve el orden
+
+Si se barajan los tokens de entrada, las salidas se barajan exactamente igual, pero el vector de salida de cada token no cambia. La autoatención es **equivariante a permutaciones**; de ahí la necesidad de las codificaciones posicionales.
+
+@@ md 907cc63ab2
+## 4. Máscaras
+
+* **Máscara de relleno:** las secuencias de un lote se rellenan hasta la misma longitud; no se debe atender a las posiciones de relleno.
+* **Máscara causal (de anticipación):** en un decodificador o en GPT, el token $i$ solo puede atender a los tokens $\le i$; si no, podría "hacer trampa" mirando la palabra que se supone que debe predecir.
+
+Ambas se aplican poniendo las puntuaciones prohibidas a $-\infty$ **antes** del softmax, de modo que sus pesos queden exactamente en 0.
+
+@@ md db30903fde
+## 5. Atención multicabeza
+
+Un solo patrón de atención por capa es limitante: un token puede necesitar mirar a la vez su palabra anterior (sintaxis) **y** un sustantivo relacionado que está lejos (significado). La **atención multicabeza** ejecuta $h$ operaciones de atención en paralelo, cada una en un subespacio más pequeño de tamaño $d_k = d_{model}/h$, y después las concatena y las mezcla con una proyección de salida $W_O$:
+
+$$ \text{MHA}(X) = \text{Concat}(\text{cabeza}_1,\dots,\text{cabeza}_h)\,W_O, \qquad \text{cabeza}_i = \text{Atención}(XW_Q^{(i)}, XW_K^{(i)}, XW_V^{(i)}) $$
+
+En la práctica todas las cabezas se calculan con **una sola** multiplicación de matrices grande y un cambio de forma, como abajo. El coste es el mismo que el de una sola cabeza de anchura completa.
+
+@@ md c527e20873
+## 6. La red de propagación hacia adelante (MLP)
+
+Después de que la atención *mezcla información entre tokens*, cada token pasa **por separado** por el mismo MLP de dos capas (notebook 02), normalmente 4 veces más ancho en el medio:
+
+$$ \text{FFN}(x) = W_2\,\text{GELU}(W_1 x + b_1) + b_2, \qquad W_1 \in \mathbb{R}^{4d\times d},\; W_2 \in \mathbb{R}^{d\times 4d} $$
+
+Formas de pensarlo:
+* **Atención = comunicación, MLP = cálculo.** La atención mueve la información de un lado a otro; el MLP la transforma.
+* **Memoria clave-valor** (Geva et al., 2021): los pesos de entrada de cada neurona oculta (una fila de $W_1$) actúan como una *clave* que detecta un patrón; sus pesos de salida (una columna de $W_2$) son el *valor* que se escribe en el token cuando el patrón se activa. Se cree que buena parte del conocimiento factual de un modelo de lenguaje vive aquí.
+* Contiene aproximadamente **dos tercios** de los parámetros de un transformer (sección 10).
+
+"Por posición" significa que se aplican los mismos pesos a cada token por separado: la celda de abajo comprueba que procesar los tokens uno a uno da el mismo resultado que procesar la secuencia completa.
+
+@@ md 0bf556f42f
+## 7. El flujo residual y LayerNorm: un bloque transformer completo
+
+Dos ingredientes más hacen entrenables las pilas profundas:
+
+* **Conexiones residuales** $x \leftarrow x + \text{Subcapa}(x)$. Cada subcapa solo *suma* una actualización a un vector en curso llamado **flujo residual** (residual stream). Los gradientes atraviesan directamente las sumas (la misma idea que el estado de celda de la LSTM y que ResNet), así que se pueden entrenar más de 100 capas.
+* La **normalización de capa** reescala cada vector de token a media cero y varianza unitaria, y después aplica una escala aprendida $\gamma$ y un desplazamiento $\beta$. Mantiene las activaciones en un rango sano.
+
+Los modelos modernos usan la disposición **pre-LN** (normalizar *antes* de cada subcapa), que es más estable que la post-LN original:
+
+```
+x ─┬─► LayerNorm ─► Atención multicabeza ─┐
+   └──────────────────────────────────────(+)─┬─► LayerNorm ─► FFN (MLP) ─┐
+                                              └───────────────────────────(+)─► siguiente bloque
+```
+
+@@ md 234308d942
+## 8. Un transformer completo en PyTorch, entrenado para ordenar números
+
+Ahora lo de verdad: un **transformer codificador-decodificador** exactamente como en el artículo de 2017 (con pre-LN), escrito desde cero con capas `nn.Linear`. Sin `nn.Transformer`. Los módulos de atención guardan sus pesos para que podamos inspeccionarlos después.
+
+**Tarea:** la entrada son 10 dígitos aleatorios y la salida, los mismos dígitos ordenados. *"3 9 1 1 7 0 4 2 8 5"* → *"0 1 1 2 3 4 5 7 8 9"*. Ordenar es un buen juguete porque:
+* **requiere** atención: cada posición de salida debe encontrar el $k$-ésimo dígito más pequeño, esté donde esté,
+* hay $10^{10}$ entradas posibles, así que el modelo no puede memorizar; debe aprender el algoritmo,
+* los patrones de atención aprendidos son interpretables.
+
+```
+ dígitos de origen ─► Embedding + PE ─► [Bloque codificador] × N ─► memoria ─────────────┐
+                                        (autoatención + MLP)                             │
+                                                                                         ▼
+ <sos> + ordenados[:-1] ─► Embedding + PE ─► [Bloque decodificador] × N ─► Lineal ─► softmax sobre dígitos
+                                             (autoatención causal + atención cruzada a la memoria + MLP)
+```
+
+@@ md 75c897eff4
+## 9. Cómo se propaga la atención
+
+### 9a. Qué mira cada capa y cada cabeza
+
+Ejecutamos un ejemplo y dibujamos cada mapa de atención:
+* **Autoatención del codificador** (entrada ↔ entrada): cómo intercambian información los tokens de origen, por ejemplo para averiguar la posición de cada dígito en el orden.
+* **Atención cruzada del decodificador** (salida → entrada): para la posición de salida $k$, qué posiciones de origen lee. Al ordenar, deberías ver que cada paso de salida se fija en la posición o posiciones de entrada que contienen el dígito que está a punto de escribir (un "puntero" aprendido), a menudo con algo de peso en su vecino en el orden, lo que ayuda al modelo a decidir cuándo pasar al siguiente valor.
+
+@@ md 1cf4e7b8f6
+### 9b. Rollout de atención: seguir la información a través de la pila
+
+Un solo mapa de atención solo muestra un salto. Después de la capa 1, el vector del token $j$ ya contiene información de otros tokens, así que cuando la capa 2 atiende a $j$ también lee indirectamente *esos* tokens. El **rollout de atención** (Abnar y Zuidema, 2020) lo sigue multiplicando los mapas de cada capa. Por la conexión residual, cada capa transmite también la mitad del token original, lo que modelamos como $\tfrac12 A + \tfrac12 I$:
+
+$$ R^{(L)} = \prod_{\ell=1}^{L} \left(\tfrac12 \bar A^{(\ell)} + \tfrac12 I\right) \qquad (\bar A = \text{media sobre las cabezas}) $$
+
+La fila $i$ de $R$ estima cuánto de cada token de entrada ha llegado a la representación final del token $i$.
+
+@@ md e178a98463
+### 9c. Flujo del gradiente: ¿qué entradas influyen realmente en una salida?
+
+Los pesos de atención nos dicen por dónde *podría* fluir la información. Los gradientes nos dicen a qué es realmente *sensible* la salida. Calculamos $\left\|\partial\, \text{logit}_k / \partial\, \text{embedding}_j\right\|$ para cada paso de salida $k$ y cada posición de entrada $j$. Es retropropagación (notebook 02) usada para interpretar, y fluye exactamente por los caminos de atención visualizados arriba.
+
+@@ md 3667a9db34
+Cómo leer las gráficas:
+* La atención cruzada y la saliencia coinciden en gran medida: cada paso de salida depende sobre todo de la entrada que contiene el dígito que se está escribiendo y de sus vecinos en el orden (el valor anterior o el siguiente).
+* No coinciden del todo, y esa es la lección: la atención muestra por dónde se *enruta* la información, el gradiente muestra a qué es *sensible* la decisión. Para saber que el "4" va en quinto lugar, el modelo debe tener en cuenta cuántos dígitos menores hay; ese conteo ocurre en la autoatención del codificador y en los MLP, y aparece como una sensibilidad repartida.
+* Los resultados varían un poco entre ejecuciones de entrenamiento (semillas aleatorias distintas aprenden estrategias distintas pero igual de correctas).
+
+## 10. Dónde viven los parámetros
+
+Para un bloque con anchura de modelo $d$ y expansión 4 en el MLP:
+
+| Componente | Parámetros | Proporción |
+|---|---|---|
+| Atención $W_Q, W_K, W_V, W_O$ | $4d^2$ | ≈ 1/3 |
+| Propagación hacia adelante $W_1, W_2$ | $2 \cdot d \cdot 4d = 8d^2$ | ≈ 2/3 |
+| LayerNorm, sesgos | $O(d)$ | despreciable |
+
+Así que un bloque tiene unos $12d^2$ parámetros, la fórmula que usaremos para GPT en el notebook 08.
+
+@@ md 520b0d7a87
+### Qué cambiaron (y qué conservaron) los transformers modernos
+
+El bloque que construiste sigue siendo el núcleo de todos los modelos grandes. Mejoras habituales desde 2017:
+
+| Original (2017) | Moderno (LLaMA, Mistral, modelos de clase GPT-4) | Por qué |
+|---|---|---|
+| Post-LN | **Pre-LN**, a menudo **RMSNorm** | entrenamiento más estable de pilas profundas |
+| Posiciones absolutas sinusoidales | **RoPE** (embeddings rotatorios) | codifica la posición relativa dentro de $q\cdot k$, extrapola mejor |
+| MLP con ReLU / GELU | MLP con compuerta **SwiGLU** | mejor calidad por parámetro |
+| Una K,V por cabeza | **Atención de consultas agrupadas** (K,V compartidas) | caché KV más pequeña, generación más rápida |
+| MLP denso | **Mezcla de expertos** (cada token se envía a 2 de N MLP) | más parámetros con el mismo cálculo |
+| Atención ingenua | **FlashAttention** (núcleo fusionado y por bloques) | las mismas matemáticas, mucho menos tráfico de memoria |
+
+## Ideas clave
+
+* Atención = softmax$(QK^\top/\sqrt{d_k})V$: una búsqueda derivable en la que cada token puede leer a cualquier otro token en un solo paso.
+* La atención multicabeza ejecuta varias búsquedas en paralelo en subespacios; las máscaras controlan quién puede ver a quién.
+* El **MLP** procesa cada token por separado y contiene la mayoría de los parámetros (el "conocimiento").
+* Las **conexiones residuales + LayerNorm** crean un flujo residual del que cada subcapa lee y en el que escribe, lo que hace entrenables las pilas profundas.
+* Los patrones de atención se componen a lo largo de las capas (rollout); los gradientes revelan qué entradas importan de verdad.
+
+## Ejercicios
+
+1. Quita la codificación posicional del codificador y vuelve a entrenar. ¿Sigue funcionando la ordenación? ¿Por qué podría funcionar? (Pista: ¿ordenar depende del orden en el lado de la *entrada*?) Ahora prueba con una tarea de **inversión**.
+2. Pon `heads=1` y compara la exactitud y los mapas de atención.
+3. Sustituye `FeedForward` por un MLP SwiGLU: $W_2(\text{SiLU}(W_1x) \odot W_3x)$.
+4. Entrena con secuencias de longitud 10 y prueba con longitud 15 (aumenta `max_len`). ¿Qué se rompe?
+5. Sustituye el decodificador por un modelo **solo codificador** que prediga, en cada posición, el lugar que ocupa ese dígito en el orden. Visualiza su atención.
+
+@@ code
+<<< axes[0].set_xlabel("position"); axes[0].set_ylabel("dimension")
+>>> axes[0].set_xlabel("posición"); axes[0].set_ylabel("dimensión")
+<<< axes[0].set_title("Sinusoidal positional encoding")
+>>> axes[0].set_title("Codificación posicional sinusoidal")
+<<< label=f"dim {dim}")
+>>> label=f"dim. {dim}")
+<<< axes[1].legend(); axes[1].set_xlabel("position"); axes[1].set_title("Each dimension is a wave of a different frequency")
+>>> axes[1].legend(); axes[1].set_xlabel("posición"); axes[1].set_title("Cada dimensión es una onda de distinta frecuencia")
+<<< axes[2].set_title("PE · PE: similarity depends on distance only")
+>>> axes[2].set_title("PE · PE: la similitud solo depende de la distancia")
+<<< axes[2].set_xlabel("position"); axes[2].set_ylabel("position")
+>>> axes[2].set_xlabel("posición"); axes[2].set_ylabel("posición")
+<<< # embedding table
+>>> # tabla de embeddings
+<<< # (6, 6): every query against every key
+>>> # (6, 6): cada consulta frente a cada clave
+<<< # each row sums to 1
+>>> # cada fila suma 1
+<<< # (6, 4): new representation per token
+>>> # (6, 4): nueva representación por token
+<<< print("X:", X.shape, " Q,K,V:", Q.shape, " scores:", scores.shape, " output:", out.shape)
+>>> print("X:", X.shape, " Q,K,V:", Q.shape, " puntuaciones:", scores.shape, " salida:", out.shape)
+<<< print("row sums of A:", A.sum(axis=1))
+>>> print("sumas por fila de A:", A.sum(axis=1))
+<<< "1) scores  QKᵀ/√d_k"
+>>> "1) puntuaciones  QKᵀ/√d_k"
+<<< "2) weights  softmax(scores)  (row = query)"
+>>> "2) pesos  softmax(puntuaciones)  (fila = consulta)"
+<<< "3) output  A·V"
+>>> "3) salida  A·V"
+<<< label="raw  q·k")
+>>> label="sin escalar  q·k")
+<<< label="scaled  q·k/√d")
+>>> label="escalada  q·k/√d")
+<<< label="uniform over 32 keys")
+>>> label="uniforme sobre 32 claves")
+<<< plt.xlabel("d_k"); plt.ylabel("entropy of attention weights")
+>>> plt.xlabel("d_k"); plt.ylabel("entropía de los pesos de atención")
+<<< plt.title("Without scaling, attention collapses to one-hot as d grows")
+>>> plt.title("Sin escalar, la atención colapsa a one-hot al crecer d")
+<<< print("permutation:", perm)
+>>> print("permutación:", perm)
+<<< print("attention(shuffled X) == shuffled attention(X):"
+>>> print("atención(X barajada) == atención(X) barajada:"
+<<< # pretend the last two tokens are padding
+>>> # supongamos que los dos últimos tokens son relleno
+<<< "causal mask (1 = allowed)"
+>>> "máscara causal (1 = permitido)"
+<<< "causal attention: lower-triangular"
+>>> "atención causal: triangular inferior"
+<<< "padding mask: last 2 columns ignored"
+>>> "máscara de relleno: se ignoran las 2 últimas columnas"
+<<< # back to (n, d)
+>>> # de vuelta a (n, d)
+<<< print("input", X.shape, "-> output", Y.shape, "| attention maps", A_heads.shape, "(heads, query, key)")
+>>> print("entrada", X.shape, "-> salida", Y.shape, "| mapas de atención", A_heads.shape, "(cabezas, consulta, clave)")
+<<< f"head {h}", vmin=0, vmax=1)
+>>> f"cabeza {h}", vmin=0, vmax=1)
+<<< # GPT-2's approximation
+>>> # la aproximación de GPT-2
+<<< print("FFN applied to the sequence == FFN applied to each token separately:"
+>>> print("FFN aplicada a la secuencia == FFN aplicada a cada token por separado:"
+<<< print(f"FFN params: {W1.size + b1.size + W2.size + b2.size}  vs  attention params: {4 * d_model * d_model}")
+>>> print(f"parámetros de la FFN: {W1.size + b1.size + W2.size + b2.size}  frente a  parámetros de la atención: {4 * d_model * d_model}")
+<<< # residual 1: attention adds to the stream
+>>> # residual 1: la atención suma al flujo
+<<< # residual 2: MLP adds to the stream
+>>> # residual 2: el MLP suma al flujo
+<<< # weight-shared for brevity; real models use different weights per layer
+>>> # pesos compartidos por brevedad; los modelos reales usan pesos distintos en cada capa
+<<< print(f"block {layer}: shape {h_new.shape}, size of update ‖Δ‖ = {np.linalg.norm(h_new - h):.2f}")
+>>> print(f"bloque {layer}: forma {h_new.shape}, tamaño de la actualización ‖Δ‖ = {np.linalg.norm(h_new - h):.2f}")
+<<< # Check our LayerNorm against PyTorch's
+>>> # Comparamos nuestra LayerNorm con la de PyTorch
+<<< print("LayerNorm matches PyTorch:"
+>>> print("LayerNorm coincide con PyTorch:"
+<<< # look at previous outputs only
+>>> # solo mira las salidas anteriores
+<<< # look at the encoded source
+>>> # mira el origen codificado
+<<< # shift right: teacher forcing
+>>> # desplazamiento a la derecha: teacher forcing
+<<< print(f"parameters: {sum(p.numel() for p in model.parameters()):,}")
+>>> print(f"parámetros: {sum(p.numel() for p in model.parameters()):,}")
+<<< print("example source :", src[0].tolist())
+>>> print("origen de ejemplo       :", src[0].tolist())
+<<< print("decoder input  :", tgt_in[0].tolist(), "(10 = <sos>)")
+>>> print("entrada del decodificador:", tgt_in[0].tolist(), "(10 = <sos>)")
+<<< print("target         :", tgt[0].tolist())
+>>> print("objetivo                :", tgt[0].tolist())
+<<< # warm-up then decay
+>>> # calentamiento y después decaimiento
+<<< print(f"step {step:4d}  loss {loss.item():.4f}  ({time.time() - t0:.0f}s)")
+>>> print(f"paso {step:4d}  pérdida {loss.item():.4f}  ({time.time() - t0:.0f} s)")
+<<< plt.semilogy(losses); plt.xlabel("step"); plt.ylabel("loss")
+>>> plt.semilogy(losses); plt.xlabel("paso"); plt.ylabel("pérdida")
+<<< plt.title("Training the transformer to sort")
+>>> plt.title("Entrenando el transformer para ordenar")
+<<< # autoregressive: one digit at a time
+>>> # autorregresivo: un dígito cada vez
+<<< print(f"fully correct sequences: {(pred == tgt).all(1).float().mean():.1%}   per-digit accuracy: {(pred == tgt).float().mean():.2%}")
+>>> print(f"secuencias totalmente correctas: {(pred == tgt).all(1).float().mean():.1%}   exactitud por dígito: {(pred == tgt).float().mean():.2%}")
+<<< print("in ", src[i].tolist(), "\nout", pred[i].tolist()
+>>> print("entrada", src[i].tolist(), "\nsalida ", pred[i].tolist()
+<<< # fills last_attn for the full decoded sequence
+>>> # rellena last_attn para toda la secuencia decodificada
+<<< print("input :", example[0].tolist(), "\noutput:", res[0].tolist())
+>>> print("entrada:", example[0].tolist(), "\nsalida :", res[0].tolist())
+<<< f"encoder L{l} head {h}"
+>>> f"codificador C{l} cabeza {h}"
+<<< fig.suptitle("Encoder self-attention (rows = query digit, cols = key digit)")
+>>> fig.suptitle("Autoatención del codificador (filas = dígito de consulta, columnas = dígito clave)")
+<<< f"decoder L{l} cross-attn head {h}"
+>>> f"decodificador C{l} at. cruzada cabeza {h}"
+<<< fig.suptitle("Decoder cross-attention (rows = output step, cols = input position)")
+>>> fig.suptitle("Atención cruzada del decodificador (filas = paso de salida, columnas = posición de entrada)")
+<<< # average heads
+>>> # promedio de las cabezas
+<<< # account for the residual path
+>>> # tiene en cuenta el camino residual
+<<< "layer 0 (mean over heads)"
+>>> "capa 0 (media de las cabezas)"
+<<< "layer 1 (mean over heads)"
+>>> "capa 1 (media de las cabezas)"
+<<< "rollout through both layers"
+>>> "rollout a través de ambas capas"
+<<< # the logit of the digit it actually wrote
+>>> # el logit del dígito que realmente escribió
+<<< "gradient saliency (normalised per row)"
+>>> "saliencia por gradiente (normalizada por fila)"
+<<< "last-layer cross-attention (mean of heads)"
+>>> "atención cruzada de la última capa (media de las cabezas)"
+<<< print(f"encoder block (d=64): attention {attn_p:,}  FFN {ffn_p:,}  LayerNorm {ln_p:,}")
+>>> print(f"bloque codificador (d=64): atención {attn_p:,}  FFN {ffn_p:,}  LayerNorm {ln_p:,}")
+<<< print(f"FFN share: {ffn_p / (attn_p + ffn_p + ln_p):.0%},  12·d² = {12 * 64 ** 2:,}")
+>>> print(f"proporción de la FFN: {ffn_p / (attn_p + ffn_p + ln_p):.0%},  12·d² = {12 * 64 ** 2:,}")
+<<< B parameters in the blocks")
+>>> mil millones de parámetros en los bloques")

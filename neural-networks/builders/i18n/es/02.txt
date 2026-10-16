@@ -1,0 +1,227 @@
+@@ file 02_redes_neuronales_y_retropropagacion.ipynb
+
+@@ md 7c209d828f
+# 02 · Redes neuronales y retropropagación
+
+**Objetivo:** pasar de una neurona a una red de varias capas, entender *exactamente* cómo la retropropagación calcula los gradientes y entrenar redes desde cero en NumPy.
+
+**Contenido**
+1. De las neuronas a las capas (forma matricial)
+2. La pasada hacia adelante
+3. Funciones de pérdida
+4. Retropropagación = la regla de la cadena sobre un grafo computacional
+5. Un pequeño motor de autograd (al estilo de micrograd) que cabe en una pantalla
+6. Un MLP vectorizado con retropropagación escrita a mano
+7. Comprobación de gradientes
+8. Entrenamiento: resolver XOR y el problema de las dos lunas
+9. Optimizadores: SGD, Momentum, Adam
+10. Inicialización y tasa de aprendizaje
+11. Comparación con el autograd de PyTorch
+12. Ejercicios
+
+@@ md 3c47128362
+## 1. De las neuronas a las capas
+
+Una **capa** son muchas neuronas que leen la misma entrada. Si apilamos sus vectores de pesos como filas de una matriz $W$, podemos calcularlas todas a la vez:
+
+$$ \mathbf{z} = W\mathbf{x} + \mathbf{b}, \qquad \mathbf{a} = f(\mathbf{z}) \qquad\qquad W \in \mathbb{R}^{\text{salida}\times\text{entrada}} $$
+
+Para un **lote** de $N$ muestras guardadas como filas de $X \in \mathbb{R}^{N\times\text{entrada}}$ escribimos $Z = XW^\top + \mathbf{b}$. Un **perceptrón multicapa (MLP)** encadena capas:
+
+```
+x ──► [Lineal W1,b1] ──► ReLU ──► [Lineal W2,b2] ──► ReLU ──► [Lineal W3,b3] ──► softmax ──► ŷ
+      capa de entrada        capas ocultas (aprenden características)          capa de salida
+```
+
+**Teorema de aproximación universal:** una sola capa oculta con suficientes neuronas puede aproximar cualquier función continua en un dominio acotado. En la práctica, las redes *más profundas* necesitan muchas menos neuronas para la misma tarea, porque cada capa reutiliza las características construidas por la anterior.
+
+@@ md 52b856c16a
+## 2. La pasada hacia adelante, a mano, sobre XOR
+
+El notebook 01 mostró que una neurona no puede calcular XOR. Dos neuronas ocultas ReLU bastan. Los pesos de abajo se eligieron a mano para demostrar que es *posible*; en la sección 8 se *aprenderán*.
+
+* $h_1 = \text{ReLU}(x_1 + x_2)$ cuenta cuántas entradas están encendidas
+* $h_2 = \text{ReLU}(x_1 + x_2 - 1)$ se activa solo cuando ambas lo están
+* $\text{salida} = h_1 - 2h_2$ da 0, 1, 1, 0
+
+@@ md 6146e250fc
+## 3. Funciones de pérdida
+
+La pérdida es un único número que indica cuánto se equivoca la red. El entrenamiento la minimiza.
+
+| Tarea | Capa de salida | Pérdida |
+|---|---|---|
+| Regresión | lineal | Error cuadrático medio $\frac1N\sum(\hat y - y)^2$ |
+| Clasificación binaria | sigmoide | Entropía cruzada binaria |
+| Clasificación multiclase | softmax | Entropía cruzada $-\frac1N\sum_i \log \hat p_{i,y_i}$ |
+| Modelado del lenguaje (GPT) | softmax sobre el vocabulario | Entropía cruzada sobre el siguiente token |
+
+La entropía cruzada tiene una propiedad preciosa cuando se combina con softmax: $\frac{\partial L}{\partial z_k} = \hat p_k - \mathbb{1}[k=y]$ (la predicción menos el objetivo one-hot), que usaremos más abajo.
+
+@@ md f21ede1100
+## 4. La retropropagación es la regla de la cadena sobre un grafo
+
+Cualquier cálculo puede dibujarse como un **grafo computacional**. Tomemos $L = (wx + b - y)^2$:
+
+```
+ w ──┐
+     (*)── u ──┐
+ x ──┘         (+)── z ──┐
+          b ───┘        (-)── e ──(^2)── L
+                   y ───┘
+```
+
+* **Pasada hacia adelante:** se calculan los valores de izquierda a derecha y se recuerdan.
+* **Pasada hacia atrás:** se empieza con $\frac{\partial L}{\partial L}=1$ y se recorre de derecha a izquierda. Cada nodo multiplica el gradiente que le llega por su **derivada local** y lo pasa a sus entradas (regla de la cadena):
+
+$$ \frac{\partial L}{\partial w} = \underbrace{\frac{\partial L}{\partial e}}_{2e}\cdot\underbrace{\frac{\partial e}{\partial z}}_{1}\cdot\underbrace{\frac{\partial z}{\partial u}}_{1}\cdot\underbrace{\frac{\partial u}{\partial w}}_{x} = 2e\,x $$
+
+Si un valor alimenta a varios nodos, los gradientes que llegan por cada camino se **suman**. Eso es todo lo que es la retropropagación (Rumelhart, Hinton y Williams, 1986). Su poder está en la eficiencia: una sola pasada hacia atrás da el gradiente respecto a **todos** los parámetros, con un coste parecido al de una pasada hacia adelante, sean 10 o 10<sup>12</sup>.
+
+@@ md 6fa1a11fc0
+## 5. Un pequeño motor de autograd
+
+Abajo hay un motor de diferenciación automática escalar en unas 50 líneas, inspirado en *micrograd* de Andrej Karpathy. Cada `Value` recuerda a sus padres y una clausura `_backward` que aplica el paso local de la regla de la cadena. El `loss.backward()` de PyTorch hace exactamente esto, solo que con tensores y en C++/CUDA.
+
+@@ md 854364e2b7
+### Entrenar un pequeño MLP con nuestro motor
+
+Neuronas, capas y un MLP construidos íntegramente con objetos `Value`. Es lento (Python puro, un escalar cada vez), pero cada gradiente lo calcula el código de arriba.
+
+@@ md e55ae0ac6d
+## 6. Un MLP vectorizado con retropropagación escrita a mano
+
+Los escalares son geniales para entender y terribles para la velocidad. Las redes reales trabajan con **matrices**. Para una capa lineal $Z = XW^\top + \mathbf{b}$ con gradiente entrante $G = \partial L/\partial Z$:
+
+$$ \frac{\partial L}{\partial W} = G^\top X, \qquad \frac{\partial L}{\partial \mathbf{b}} = \sum_{\text{lote}} G, \qquad \frac{\partial L}{\partial X} = G\,W $$
+
+Comprobar las dimensiones es la forma más fácil de recordarlas: $\partial L/\partial W$ debe tener la forma de $W$.
+
+Para una activación elemento a elemento $A = f(Z)$: $\;\partial L/\partial Z = \partial L/\partial A \odot f'(Z)$.
+
+Cada capa de abajo implementa `forward` (guardando lo que necesitará la pasada hacia atrás) y `backward` (devuelve el gradiente para la capa anterior y guarda los gradientes de sus propios parámetros). Es precisamente el diseño de `nn.Module` + `autograd.Function` en PyTorch.
+
+@@ md 9bda7fe8c2
+## 7. Comprobación de gradientes
+
+Es fácil equivocarse sutilmente al escribir la retropropagación a mano. Comparamos cada gradiente analítico con una diferencia finita centrada. Un error relativo por debajo de ~1e-6 significa que la implementación es correcta.
+
+@@ md 840bdf2903
+## 8. Entrenamiento
+
+El bucle de entrenamiento es el mismo en todos los proyectos de aprendizaje profundo, desde este juguete hasta GPT:
+
+```
+para cada época:
+    para cada minilote (X, y):
+        loss = forward(X, y)          # 1. predecir y medir el error
+        backward()                    # 2. gradientes de la pérdida respecto a cada parámetro
+        optimizer.step()              # 3. mover los parámetros cuesta abajo
+```
+
+### 8a. XOR, aprendido en lugar de diseñado a mano
+
+En teoría bastan dos neuronas ocultas (sección 2), pero el descenso de gradiente desde un inicio aleatorio desafortunado puede atascarse con tan poca capacidad (por ejemplo, si una ReLU muere). Una capa más ancha le da al optimizador muchos más caminos hacia una solución. Este efecto de "sobreparametrizar y después optimizar" es una de las razones por las que las redes grandes se entrenan tan bien.
+
+@@ md b4faee2e1b
+### 8b. Dos lunas: una frontera de decisión no lineal
+
+Minilotes, una partición en entrenamiento y prueba, y una gráfica de cómo evoluciona la frontera.
+
+@@ md 04bc566db5
+### ¿Qué aprendió la capa oculta?
+
+Cada neurona de la primera capa dibuja una recta (notebook 01). La segunda capa combina esos semiplanos en regiones curvas. Abajo: la activación de algunas neuronas de la primera capa sobre el espacio de entrada.
+
+@@ md 9ccfed4eba
+## 9. Optimizadores
+
+El SGD simple usa $\theta \leftarrow \theta - \eta\, g$. Dos mejoras impulsan casi todo el entrenamiento moderno:
+
+* **Momentum:** se mantiene una media móvil de los gradientes, $v \leftarrow \beta v + g$, y se avanza en la dirección de $v$. Como una bola pesada, acelera por los valles planos y amortigua los zigzags.
+* **Adam** (Kingma y Ba 2014): momentum *más* una escala por parámetro a partir de la media móvil de los gradientes al cuadrado, de modo que cada parámetro tiene su propia tasa de aprendizaje efectiva. Los modelos tipo GPT usan **AdamW** (Adam + decaimiento de pesos desacoplado).
+
+$$ m \leftarrow \beta_1 m + (1-\beta_1) g,\quad v \leftarrow \beta_2 v + (1-\beta_2) g^2,\quad \theta \leftarrow \theta - \eta\,\frac{\hat m}{\sqrt{\hat v}+\epsilon} $$
+
+@@ md 087969110e
+## 10. Inicialización y tasa de aprendizaje
+
+**Inicialización.** Si los pesos son demasiado pequeños, las activaciones se encogen capa tras capa hasta que la señal (y el gradiente) desaparece. Si son demasiado grandes, explotan. La **inicialización de He** ($\mathcal{N}(0, 2/n_{in})$) mantiene aproximadamente constante la varianza de las activaciones ReLU a lo largo de la profundidad. La gráfica muestra la dispersión de las activaciones en una red de 10 capas para tres opciones.
+
+@@ md a983623d99
+La **tasa de aprendizaje** es el hiperparámetro más importante. Demasiado pequeña: lento. Demasiado grande: la pérdida oscila o diverge.
+
+@@ md cfb9400b79
+## 11. Comparación con el autograd de PyTorch
+
+Copiamos los pesos de nuestra red de NumPy a PyTorch, procesamos el mismo lote y comparamos los gradientes. Coinciden hasta la precisión de coma flotante: `loss.backward()` es el algoritmo que acabamos de escribir.
+
+@@ md 8bb37b15ed
+## Ideas clave
+
+* Una red son capas de neuronas; una capa es una multiplicación de matrices más una no linealidad.
+* La **retropropagación** aplica la regla de la cadena hacia atrás a través del grafo computacional; una sola pasada hacia atrás da todos los gradientes.
+* Gradientes de una capa lineal: $dW = G^\top X$, $db=\sum G$, $dX = GW$. Las activaciones multiplican por $f'(z)$ elemento a elemento.
+* **Comprueba siempre los gradientes** de una pasada hacia atrás escrita a mano.
+* **Adam** + **inicialización de He** + una **tasa de aprendizaje** sensata hacen que el entrenamiento sea fiable.
+* PyTorch automatiza exactamente esto, y es lo que usamos de los notebooks 03 al 09.
+
+## Ejercicios
+
+1. Añade una clase de capa `Sigmoid` y entrena con ella la red de las dos lunas. Compárala con ReLU y Tanh.
+2. Añade **decaimiento de pesos L2** a `sgd_step` ($P \leftarrow P - \eta(\nabla + \lambda P)$). ¿Cómo cambia la frontera de decisión con un $\lambda$ grande?
+3. Añade los métodos `__truediv__` y `exp` a `Value` e implementa softmax con el motor escalar.
+4. Entrena con `sklearn.datasets.make_circles`. ¿Cuál es la capa oculta más pequeña que lo resuelve?
+5. Implementa **dropout** como una capa (máscara aleatoria durante el entrenamiento, identidad en la prueba).
+
+@@ code
+<<< print(f"x={x.astype(int)}  hidden={h}  output={o[0]:.0f}")
+>>> print(f"x={x.astype(int)}  oculta={h}  salida={o[0]:.0f}")
+<<< # topological order guarantees a node's grad is complete before it propagates further
+>>> # el orden topológico garantiza que el gradiente de un nodo esté completo antes de propagarse
+<<< # The example from section 4
+>>> # El ejemplo de la sección 4
+<<< "(expected 2*e*x =", 2 * e * 3, ") | dL/db =", b.grad, "(expected 2*e =", 2 * e, ")")
+>>> "(esperado 2*e*x =", 2 * e * 3, ") | dL/db =", b.grad, "(esperado 2*e =", 2 * e, ")")
+<<< # XOR with labels in {-1, +1}
+>>> # XOR con etiquetas en {-1, +1}
+<<< # gradients accumulate, so reset them
+>>> # los gradientes se acumulan, así que se reinician
+<<< print("parameters:", len(net.parameters()))
+>>> print("parámetros:", len(net.parameters()))
+<<< print("predictions:", [round(p.data, 3) for p in preds], "targets:", targets)
+>>> print("predicciones:", [round(p.data, 3) for p in preds], "objetivos:", targets)
+<<< plt.title("micrograd-style MLP learning XOR"); plt.xlabel("step"); plt.ylabel("loss")
+>>> plt.title("MLP al estilo micrograd aprendiendo XOR"); plt.xlabel("paso"); plt.ylabel("pérdida")
+<<< # Fused for numerical stability; gradient is (p - onehot) / N
+>>> # Fusionadas por estabilidad numérica; el gradiente es (p - onehot) / N
+<<< # the "back" in backpropagation
+>>> # el "hacia atrás" de la retropropagación
+<<< print("max relative error, ReLU net:"
+>>> print("error relativo máximo, red ReLU:"
+<<< print("max relative error, Tanh net:"
+>>> print("error relativo máximo, red Tanh:"
+<<< print(f"one run, 16 hidden: final loss {loss:.4f}; predictions {net.predict(X_xor)} vs targets {y_xor}\n")
+>>> print(f"una ejecución, 16 ocultas: pérdida final {loss:.4f}; predicciones {net.predict(X_xor)} frente a objetivos {y_xor}\n")
+<<< print(f"hidden={hidden:2d}: solved XOR in {solved}/20 random initialisations")
+>>> print(f"ocultas={hidden:2d}: resolvió XOR en {solved}/20 inicializaciones aleatorias")
+<<< axes[0].plot(hist); axes[0].set_title("training loss"); axes[0].set_xlabel("epoch")
+>>> axes[0].plot(hist); axes[0].set_title("pérdida de entrenamiento"); axes[0].set_xlabel("época")
+<<< f"after epoch {ep}")
+>>> f"tras la época {ep}")
+<<< print(f"train acc {(net.predict(Xtr) == ytr).mean():.1%} | test acc {(net.predict(Xte) == yte).mean():.1%}")
+>>> print(f"exactitud en entrenamiento {(net.predict(Xtr) == ytr).mean():.1%} | en prueba {(net.predict(Xte) == yte).mean():.1%}")
+<<< ax.set_title(f"hidden neuron {k}")
+>>> ax.set_title(f"neurona oculta {k}")
+<<< # bias correction for the first steps
+>>> # corrección del sesgo en los primeros pasos
+<<< plt.yscale("log"); plt.xlabel("epoch"); plt.ylabel("training loss"); plt.legend(); plt.title("Optimiser comparison")
+>>> plt.yscale("log"); plt.xlabel("época"); plt.ylabel("pérdida de entrenamiento"); plt.legend(); plt.title("Comparación de optimizadores")
+<<< ax.set_xlabel("layer"); ax.set_ylabel("std of activations"); ax.legend(); ax.set_title("Signal propagation through depth")
+>>> ax.set_xlabel("capa"); ax.set_ylabel("desviación típica de las activaciones"); ax.legend(); ax.set_title("Propagación de la señal a lo largo de la profundidad")
+<<< plt.xlabel("epoch"); plt.ylabel("training loss (clipped at 3)"); plt.legend(); plt.title("Effect of the learning rate")
+>>> plt.xlabel("época"); plt.ylabel("pérdida de entrenamiento (recortada en 3)"); plt.legend(); plt.title("Efecto de la tasa de aprendizaje")
+<<< print(f"layer {i}: max |dW ours - dW torch| = {np.abs(l.dW - W.grad.numpy()).max():.2e}, "
+>>> print(f"capa {i}: máx |dW nuestro - dW torch| = {np.abs(l.dW - W.grad.numpy()).max():.2e}, "
+<<< f"max |db diff| = {np.abs(l.db - b.grad.numpy()).max():.2e}")
+>>> f"máx |diferencia db| = {np.abs(l.db - b.grad.numpy()).max():.2e}")

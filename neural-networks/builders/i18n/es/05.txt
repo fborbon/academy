@@ -1,0 +1,203 @@
+@@ file 05_redes_recurrentes.ipynb
+
+@@ md f70c454782
+# 05 · Redes recurrentes y pronóstico de series temporales
+
+Las imágenes tienen una estructura espacial; muchas otras señales tienen una **temporal**: la demanda eléctrica, las lecturas de sensores, los precios, la voz, el texto. El orden importa, la longitud varía y lo que pasa ahora depende de lo que pasó antes.
+
+Una **red neuronal recurrente** lee una secuencia paso a paso y lleva consigo una memoria. En este notebook vas a:
+
+| Sección | Idea | Experimento |
+|---|---|---|
+| 1-3 | el bucle recurrente, las compuertas de la LSTM | escribir a mano una celda RNN |
+| 4-5 | pronóstico con variables de calendario | una RNN y una LSTM pronostican 20 días no vistos de demanda horaria, frente a una referencia estacional ingenua |
+| 6 | ¿hasta dónde puede recordar una red? | medir lo rápido que se desvanecen los gradientes en el tiempo, y qué cambia la compuerta de olvido de la LSTM |
+| 7 | pronóstico directo de varios horizontes | predecir las próximas 24 horas de una vez en lugar de realimentar las predicciones |
+
+Todo se ejecuta en una CPU en pocos minutos, con un conjunto de datos sintético generado en el propio notebook.
+
+@@ md 49944502f3
+## 1. La idea: un bucle con memoria
+
+Una RNN lee una secuencia paso a paso y mantiene un **estado oculto** $h_t$, un resumen de todo lo visto hasta el momento:
+
+$$ h_t = \tanh(W_{xh} x_t + W_{hh} h_{t-1} + b_h), \qquad \hat y_t = W_{hy} h_t + b_y $$
+
+Se usan los **mismos pesos** en cada paso (igual que una CNN comparte pesos en el espacio, una RNN los comparte en el tiempo). Desplegada en el tiempo, es simplemente una red muy profunda:
+
+```
+        y1          y2          y3                yT
+        ▲           ▲           ▲                 ▲
+h0 ──► [celda] ─h1─► [celda] ─h2─► [celda] ─h3─ ... ─► [celda] ──► hT
+        ▲           ▲           ▲                 ▲
+        x1          x2          x3                xT
+```
+
+El entrenamiento usa **retropropagación a través del tiempo (BPTT)**: retropropagación normal sobre el grafo desplegado. Como el gradiente se multiplica por $W_{hh}$ y por $\tanh'$ en cada paso, **se desvanece** (o explota) en secuencias largas, así que una RNN simple olvida lo que pasó hace más de unas pocas decenas de pasos.
+
+## 2. La solución de la LSTM: memoria con compuertas
+
+La celda **Long Short-Term Memory** (memoria a corto y largo plazo; Hochreiter y Schmidhuber, 1997) añade un **estado de celda** $c_t$ aparte, que fluye en el tiempo sobre todo mediante *sumas*, controlado por tres **compuertas** sigmoides:
+
+| Compuerta | Fórmula | Significado |
+|---|---|---|
+| olvido $f_t$ | $\sigma(W_f[h_{t-1},x_t]+b_f)$ | qué borrar de la memoria |
+| entrada $i_t$ | $\sigma(W_i[h_{t-1},x_t]+b_i)$ | cuánta información nueva escribir |
+| candidata $\tilde c_t$ | $\tanh(W_c[h_{t-1},x_t]+b_c)$ | la información nueva |
+| salida $o_t$ | $\sigma(W_o[h_{t-1},x_t]+b_o)$ | qué mostrar como $h_t$ |
+
+$$ c_t = f_t \odot c_{t-1} + i_t \odot \tilde c_t, \qquad h_t = o_t \odot \tanh(c_t) $$
+
+Cuando $f_t \approx 1$, el gradiente fluye a lo largo de $c_t$ casi intacto: la misma idea de "autopista aditiva" que las conexiones residuales de ResNet y el flujo residual del transformer. La **GRU** es una variante más ligera con dos compuertas.
+
+## 3. Una celda RNN escrita a mano
+
+@@ md 7abe6eed91
+## 4. Datos: una señal sintética de "demanda" horaria
+
+Muchas series reales (carga eléctrica, tráfico web, ventas) se parecen a esta: un ciclo **diario**, un ciclo **semanal** (fines de semana más bajos), una **tendencia** lenta y **ruido**. Generamos 120 días de datos horarios, entrenamos con los primeros 100 días y pronosticamos el resto.
+
+@@ md 7ddae363cb
+Convertimos la serie en ejemplos supervisados con una **ventana deslizante**: el modelo ve las últimas `W = 48` horas y predice la siguiente.
+
+Cada paso de tiempo lleva 5 variables: la demanda (normalizada) más cuatro **variables de calendario**, el $\sin/\cos$ de la hora del día y de la hora de la semana. Las variables de calendario se conocen de antemano, así que también están disponibles al pronosticar el futuro, y le dicen a la red *en qué punto de la semana está* sin tener que recordar una semana entera de historia. Es la práctica habitual en el pronóstico real de demanda.
+
+@@ md 606ee836b9
+## 5. Pronosticar los 20 días no vistos
+
+Hay dos formas de usar el modelo:
+* **Un paso por delante:** en cada hora se le dan las 48 horas anteriores *reales* y predice la siguiente.
+* **Varios pasos de forma recursiva:** predice la hora 1, se añade la predicción a la entrada, predice la hora 2, y así durante toda una semana. Los errores se acumulan, así que es mucho más difícil y más parecido al pronóstico real.
+
+Comparamos con la referencia **estacional ingenua** ("la misma hora de la semana pasada"), una referencia sorprendentemente fuerte que cualquier modelo de pronóstico debe superar. El ruido que añadimos tiene una desviación típica de 1,5, así que un RMSE de 1,5 es lo mejor que podría lograr cualquier modelo.
+
+@@ md ce561e3fbb
+Cosas en las que fijarse:
+* Ambas redes aprenden de los datos las formas diaria y semanal, y superan a la referencia estacional ingenua un paso por delante.
+* En modo recursivo, la LSTM suele ser la más estable de las dos: su estado de celda con compuertas lleva la información a lo largo de muchos pasos, justo donde los gradientes de la RNN simple se desvanecen.
+* Los pronósticos recursivos empeoran a medida que se acumulan los errores. La sección 7 elimina ese bucle de realimentación.
+
+## 6. ¿Hasta dónde puede recordar una red recurrente?
+
+La sección 1 afirmaba que los gradientes se desvanecen en el tiempo. Podemos medirlo directamente. Damos a una red una secuencia aleatoria de 100 pasos y calculamos cuánto depende el estado oculto **final** de cada entrada:
+
+$$ \text{sensibilidad}(t) = \left\| \frac{\partial h_T}{\partial x_t} \right\| $$
+
+Si decae rápido a medida que $t$ se aleja de $T$, la red no puede aprender dependencias de largo alcance: la señal de entrenamiento de la pérdida nunca llega a esos primeros pasos.
+
+Comparamos una RNN simple con varias LSTM que solo se diferencian **en el sesgo inicial de la compuerta de olvido**. Con sesgo 0, la compuerta de olvido empieza en $\sigma(0) = 0.5$, así que el estado de celda se reduce a la mitad en cada paso, de forma muy parecida a la multiplicación repetida de la RNN. Un sesgo positivo hace que la compuerta empiece cerca de 1 ("recordar por defecto"), un truco recomendado por Gers et al. (2000) y Jozefowicz et al. (2015). El equivalente en la GRU es su compuerta de *actualización*.
+
+@@ md 227a8fb8cf
+Dos lecciones en una sola gráfica:
+
+* Con la configuración por defecto, la LSTM olvida **tan rápido como la RNN simple**: la dependencia de una entrada de hace 50 pasos es menor que $10^{-10}$ en ambas. Las compuertas hacen *posible* la memoria larga, no la hacen automática.
+* Abrir la compuerta de olvido lo cambia todo. Con sesgo 3, el estado de celda se transmite casi sin cambios y la sensibilidad apenas decae en 100 pasos. Durante el entrenamiento, una LSTM puede aprender esos valores de compuerta donde la tarea los necesite, y partir de un sesgo de olvido positivo lo facilita mucho.
+
+Una RNN simple no tiene ese mando: su memoria se multiplica por $W_{hh}$ y se comprime con $\tanh$ en cada paso, y mantener ese producto cerca de 1 durante tramos largos es justo lo que le cuesta al descenso de gradiente. Esta es la razón práctica por la que las LSTM y las GRU sustituyeron a las RNN simples, y la misma idea de "un camino aditivo para el gradiente" reaparece en las ResNet (notebook 04) y en los transformers (notebook 07).
+
+## 7. Pronóstico directo de varios horizontes
+
+Los pronósticos reales suelen necesitarse para todo un horizonte a la vez, por ejemplo **las 24 horas de mañana**, emitidos cada día a medianoche (así funcionan los mercados eléctricos diarios). Hay dos formas de conseguirlo:
+
+* **Recursiva:** el modelo de un paso de la sección 5, ejecutado 24 veces, realimentando cada predicción como entrada.
+* **Directa:** un modelo cuya capa de salida tiene 24 unidades, entrenado para predecir las 24 horas a partir de la misma historia de 48 horas. Sin bucle de realimentación, así que sin acumulación de errores, y cada salida puede especializarse en su propio horizonte.
+
+Evaluamos ambos de la forma honesta: un pronóstico por cada día no visto, emitido a medianoche y evaluado sobre las 24 horas siguientes.
+
+@@ md 992bfb77db
+La gráfica por horizonte muestra el mecanismo: el error del modelo recursivo crece con cada hora porque cada paso hereda los errores del anterior, mientras que el error del modelo directo se mantiene más o menos plano a lo largo del día. Los sistemas de pronóstico en producción suelen ir un paso más allá y producir una **distribución** completa por hora (cuantiles), para que las decisiones posteriores puedan tener en cuenta la incertidumbre.
+
+## Resumen
+
+| Modelo | Idea clave | Punto fuerte | Punto débil |
+|---|---|---|---|
+| RNN simple | función de paso compartida + estado oculto | simple, procesa en flujo | la memoria se desvanece en unas pocas decenas de pasos |
+| LSTM / GRU | memoria aditiva con compuertas | recuerda mucho más, entrenamiento estable | sigue siendo secuencial, así que lenta de entrenar con secuencias largas |
+| directo de varios horizontes | una salida por cada paso futuro | sin acumulación de errores | horizonte fijado de antemano |
+
+Las redes recurrentes siguen siendo una buena opción para problemas pequeños y en flujo. Con secuencias largas y conjuntos de datos grandes, las superó la atención (notebooks 06 y 07), que mira cada paso pasado directamente en lugar de pasar una memoria a lo largo de una cadena.
+
+## Ejercicios
+
+1. Sustituye `"lstm"` por `"gru"` en la sección 5. Después quita las variables de calendario (tamaño de entrada 1) y usa una ventana de 168 horas: ¿qué modelo sufre más y por qué?
+2. Construye una prueba de memoria: el primer valor de una secuencia es +1 o −1, el resto son ruido, y la red debe dar el signo después de leerlo todo. Entrena una RNN y una LSTM con longitudes 10, 30 y 100. ¿Cuánto entrenamiento necesita cada una y dónde se rinde cada una?
+3. Vuelve a entrenar la LSTM de la sección 5 con el sesgo de la compuerta de olvido inicializado a 1 (reutiliza `gated`). ¿Mejora el pronóstico recursivo de 7 días?
+4. Convierte el modelo directo en un pronosticador de **cuantiles**: produce los percentiles 10, 50 y 90 para cada hora usando la pérdida pinball. ¿Con qué frecuencia cae el valor real dentro de la banda 10-90?
+
+@@ code
+<<< # x: (batch, time, features)
+>>> # x: (lote, tiempo, variables)
+<<< # the recurrence: same weights at every step
+>>> # la recurrencia: los mismos pesos en cada paso
+<<< print("hidden states shape:", tuple(rnn(torch.randn(2, 10, 1)).shape), "= (batch, time, hidden)")
+>>> print("forma de los estados ocultos:", tuple(rnn(torch.randn(2, 10, 1)).shape), "= (lote, tiempo, oculto)")
+<<< # always normalise inputs for neural nets
+>>> # normaliza siempre las entradas de una red neuronal
+<<< plt.xlabel("day"); plt.ylabel("demand"); plt.title("First three weeks: daily cycle + quieter weekends")
+>>> plt.xlabel("día"); plt.ylabel("demanda"); plt.title("Primeras tres semanas: ciclo diario + fines de semana más tranquilos")
+<<< # values: the W demand values before hour t; calendar shifted by one so each step also "knows" the next hour
+>>> # values: los W valores de demanda anteriores a la hora t; calendario desplazado uno para que cada paso también "conozca" la hora siguiente
+<<< print("training windows:", tuple(Xs_tr.shape), "= (samples, time steps, features) -> targets", tuple(ys_tr.shape))
+>>> print("ventanas de entrenamiento:", tuple(Xs_tr.shape), "= (muestras, pasos de tiempo, variables) -> objetivos", tuple(ys_tr.shape))
+<<< # use the last hidden state
+>>> # se usa el último estado oculto
+<<< # standard protection against exploding gradients
+>>> # protección estándar contra la explosión de gradientes
+<<< print(f"{kind.upper():4s} params {count_params(models[kind]):5d}  final train MSE {np.mean(l[-50:]):.4f}  ({time.time() - t0:.0f}s)")
+>>> print(f"{kind.upper():4s} parámetros {count_params(models[kind]):5d}  MSE final de entrenamiento {np.mean(l[-50:]):.4f}  ({time.time() - t0:.0f} s)")
+<<< # one window per unseen hour
+>>> # una ventana por cada hora no vista
+<<< # the prediction becomes the next input
+>>> # la predicción se convierte en la siguiente entrada
+<<< print(f"{'model':8s} {'1-step RMSE':>12s} {'recursive 7-day RMSE':>22s}")
+>>> print(f"{'modelo':8s} {'RMSE 1 paso':>12s} {'RMSE recursivo 7 días':>22s}")
+<<< print(f"{'(floor)':8s} {noise_sd:12.2f} {noise_sd:22.2f}")
+>>> print(f"{'(suelo)':8s} {noise_sd:12.2f} {noise_sd:22.2f}")
+<<< print(f"{'naive':8s} {rmse(naive, truth):12.2f} {rmse(naive[:168], truth[:168]):22.2f}")
+>>> print(f"{'ingenuo':8s} {rmse(naive, truth):12.2f} {rmse(naive[:168], truth[:168]):22.2f}")
+<<< [("one-step-ahead", 0), ("recursive (feeds its own predictions back)", 1)]
+>>> [("un paso por delante", 0), ("recursivo (realimenta sus propias predicciones)", 1)]
+<<< label="truth")
+>>> label="real")
+<<< ax.set_title(f"First unseen week, {label}")
+>>> ax.set_title(f"Primera semana no vista, {label}")
+<<< axes[1].set_xlabel("day")
+>>> axes[1].set_xlabel("día")
+<<< # PyTorch stacks the gate parameters; rows 32:64 are the LSTM forget gate and the GRU update gate
+>>> # PyTorch apila los parámetros de las compuertas; las filas 32:64 son la compuerta de olvido de la LSTM y la de actualización de la GRU
+<<< "LSTM, forget bias 0 (PyTorch default)"
+>>> "LSTM, sesgo de olvido 0 (por defecto en PyTorch)"
+<<< "LSTM, forget bias 1"
+>>> "LSTM, sesgo de olvido 1"
+<<< "LSTM, forget bias 3"
+>>> "LSTM, sesgo de olvido 3"
+<<< "GRU, update bias 3"
+>>> "GRU, sesgo de actualización 3"
+<<< ls="--" if "default" in name else "-"
+>>> ls="--" if "defecto" in name else "-"
+<<< print(f"{name:40s} sensitivity 50 steps back: {s[50]:.1e}")
+>>> print(f"{name:48s} sensibilidad 50 pasos atrás: {s[50]:.1e}")
+<<< ax.set_xlabel("steps before the end of the sequence")
+>>> ax.set_xlabel("pasos antes del final de la secuencia")
+<<< ax.set_title("How much the last state depends on earlier inputs (networks before training)")
+>>> ax.set_title("Cuánto depende el último estado de las entradas anteriores (redes antes de entrenar)")
+<<< # one output per future hour
+>>> # una salida por cada hora futura
+<<< print(f"direct model trained in {time.time() - t0:.0f}s")
+>>> print(f"modelo directo entrenado en {time.time() - t0:.0f} s")
+<<< # every unseen midnight
+>>> # cada medianoche no vista
+<<< "seasonal naive"
+>>> "estacional ingenuo"
+<<< "LSTM recursive"
+>>> "LSTM recursiva"
+<<< "LSTM direct"
+>>> "LSTM directa"
+<<< print(f"\nday-ahead RMSE over {len(origins)} unseen days (noise floor {noise_sd})")
+>>> print(f"\nRMSE del día siguiente sobre {len(origins)} días no vistos (suelo de ruido {noise_sd})")
+<<< print(f"  {name:16s} {np.sqrt((e ** 2).mean()):.2f}")
+>>> print(f"  {name:18s} {np.sqrt((e ** 2).mean()):.2f}")
+<<< label="noise floor")
+>>> label="suelo de ruido")
+<<< ax.set_xlabel("hours ahead"); ax.set_ylabel("RMSE"); ax.set_title("Error by forecast horizon")
+>>> ax.set_xlabel("horas por delante"); ax.set_ylabel("RMSE"); ax.set_title("Error según el horizonte de pronóstico")

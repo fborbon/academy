@@ -1,0 +1,284 @@
+@@ file 06_embeddings_y_traduccion.ipynb
+
+@@ md b77c253f47
+# 06 · Embeddings de palabras y traducción secuencia a secuencia
+
+Las imágenes son rejillas de números y las series temporales son listas de números, pero **las palabras son símbolos**. Antes de que una red pueda leer texto, cada palabra tiene que convertirse en un vector, y *qué* vector sea importa muchísimo. Este notebook cubre las dos ideas que llevaron a las redes neuronales de los números al lenguaje:
+
+| Parte | Idea | Experimento |
+|---|---|---|
+| A · secciones 1-5 | **embeddings de palabras**: el significado como geometría | entrenar embeddings al estilo word2vec desde cero, encontrar analogías como *rey − hombre + mujer ≈ reina* y después medir y eliminar un sesgo de género sembrado en el texto de entrenamiento |
+| B · secciones 6-10 | **codificador-decodificador con atención** | traducir de inglés a español con un codificador GRU, un decodificador con atención y búsqueda en haz |
+
+Todo se ejecuta en una CPU en pocos minutos. Ambos corpus se generan en el notebook a partir de pequeñas gramáticas, así que cada resultado es reproducible y no se descarga nada.
+
+Un **embedding** (a veces traducido como "incrustación" o "vector de palabra") es la representación vectorial densa de un símbolo; usamos el término en inglés porque es el que encontrarás en la documentación y en los artículos. Los dos corpus de este notebook están **en inglés**: en la Parte A porque así las analogías se pueden comparar con los resultados clásicos publicados, y en la Parte B porque la tarea consiste precisamente en traducir del inglés al español.
+
+@@ md b8e04968a1
+---
+# Parte A · Embeddings de palabras
+
+## 1. De los vectores one-hot a los vectores densos
+
+La codificación más simple le da a cada una de las $V$ palabras su propia posición en un vector de $V$ dimensiones: *cat* = $[0,0,1,0,\dots]$. Esta codificación **one-hot** tiene un defecto fatal: todos los pares de palabras están igual de lejos. *cat* (gato) se parece tanto a *dog* (perro) como a *Tuesday* (martes), así que nada de lo que la red aprende sobre una palabra le sirve para ninguna otra.
+
+Un **embedding** asigna a cada palabra un vector denso y corto (aquí 32 números en lugar de 148), guardado como una fila de una matriz $E \in \mathbb{R}^{V \times d}$. Buscar una palabra es simplemente seleccionar una fila, que es exactamente multiplicar un vector one-hot por $E$. Las filas se aprenden, y la esperanza es que las palabras que se usan de forma parecida acaben cerca unas de otras.
+
+¿Qué significa "que se usan de forma parecida"? La **hipótesis distribucional** (Harris 1954, Firth 1957): *"Conocerás una palabra por las compañías que frecuenta."* *Paris* y *Rome* aparecen junto a las mismas palabras (*capital*, *flew to*, *big city*), así que un modelo que predice las palabras de contexto a partir de una palabra se verá empujado a darles vectores parecidos.
+
+@@ md fa1296cb5d
+## 2. Un pequeño corpus con estructura oculta
+
+Los embeddings reales se entrenan con miles de millones de palabras. Para ver los mismos efectos en segundos, generamos 60.000 frases a partir de una pequeña gramática con **una estructura que podemos comprobar después**:
+
+* **personas** que se diferencian en tres ejes independientes: género (*man/woman*, *king/queen*), realeza (el *king* vive en un *palace*) y edad (el *boy* va a la *school*);
+* **geografía**: países, sus capitales y sus idiomas, conectados por frases coherentes;
+* **animales** y **comida**, que aparecen en contextos claramente distintos;
+* **profesiones**, donde sembramos deliberadamente un **sesgo**: *engineer, pilot, mechanic, programmer* (ingeniero, piloto, mecánico, programador) aparecen con *he* (él) el 85 % de las veces, y *nurse, receptionist, nanny, secretary* (enfermera, recepcionista, niñera, secretaria) con *she* (ella) el 85 % de las veces. El texto real tiene desviaciones como esta, y la sección 5 muestra lo que les hacen a los embeddings.
+
+@@ md 992d0fc04e
+## 3. Entrenamiento: skip-gram con muestreo negativo
+
+El modelo **skip-gram** (Mikolov et al., 2013, el artículo de "word2vec") convierte la hipótesis distribucional en una tarea de entrenamiento: dada una palabra central, predecir qué palabras aparecen a pocas posiciones de ella.
+
+Predecir la palabra correcta entre todo el vocabulario exige un softmax sobre $V$ palabras, lo que resulta caro con vocabularios grandes. El **muestreo negativo** lo sustituye por una pregunta barata de sí o no: para un par real (central, contexto), empuja la puntuación $\sigma(u_o \cdot v_c)$ hacia 1; para $k$ palabras de "ruido" aleatorias, empuja sus puntuaciones hacia 0.
+
+$$ \mathcal{L} = -\log \sigma(u_o^\top v_c) \;-\; \sum_{j=1}^{k} \log \sigma(-u_{n_j}^\top v_c) $$
+
+Cada palabra tiene dos vectores: $v$ cuando es la palabra central y $u$ cuando es una palabra de contexto. Tras el entrenamiento usamos $v + u$ como embedding de cada palabra (el artículo de GloVe hace lo mismo) y restamos el vector medio del vocabulario. Centrar elimina una dirección que comparten todas las palabras y que, si no, domina las similitudes coseno; prueba los vectores $v$ en bruto en el ejercicio 2 y verás cómo se hunden las analogías de idiomas. Las palabras de ruido se extraen con probabilidad proporcional a $\text{frecuencia}^{0.75}$, lo que muestrea las palabras raras un poco más a menudo que su frecuencia en bruto.
+
+@@ md f12732b3e9
+## 4. Explorar el espacio de embeddings
+
+La **similitud coseno** $\cos(a, b) = \frac{a \cdot b}{\|a\|\|b\|}$ mide si dos vectores apuntan en la misma dirección. Nadie le dijo al modelo que *Paris* es una ciudad ni que *dog* es un animal; solo vio qué palabras aparecen junto a cuáles.
+
+@@ md fcd798d984
+### Analogías: las relaciones se convierten en direcciones
+
+Si *man → woman* y *king → queen* se diferencian de la misma manera (el género), los vectores diferencia deberían ser aproximadamente iguales, así que
+
+$$ \vec{\text{queen}} \approx \vec{\text{king}} - \vec{\text{man}} + \vec{\text{woman}} $$
+
+Respondemos "*a* es a *b* como *c* es a ?" calculando $\vec b - \vec a + \vec c$ y devolviendo la palabra más parecida que no sea ninguna de las tres de entrada.
+
+@@ md 8c8069b188
+Las analogías geográficas salen casi perfectas, a partir de nada más que estadísticas de coocurrencia. Las de género son más difíciles, y los fallos son informativos: las personas de este corpus se diferencian en varios ejes a la vez (género, realeza, edad, papel en la familia), así que la respuesta a *son : daughter :: brother : ?* tiene que competir con palabras cercanas que comparten la mayoría de esos ejes. Los embeddings de word2vec reales cometen el mismo tipo de errores.
+
+## 5. Los embeddings heredan los sesgos de su texto
+
+Nuestro corpus dijo *the engineer … he* el 85 % de las veces y *the nurse … she* el 85 % de las veces. El modelo no tiene forma de saber que se trata de un patrón social y no de un hecho sobre la ingeniería, así que lo aprende. Bolukbasi et al. (2016) encontraron lo mismo en embeddings entrenados con artículos de noticias ("el hombre es al programador informático lo que la mujer al ama de casa").
+
+Podemos medirlo: construimos una **dirección de género** $g$ promediando las diferencias de pares claramente marcados por género y proyectamos cada profesión sobre ella. Un valor positivo significa "más cerca de *he*" y uno negativo, "más cerca de *she*".
+
+@@ md a6cdfc29b9
+### Eliminar el sesgo: neutralizar
+
+La solución más simple del mismo artículo es **neutralizar** las palabras que deberían ser neutras en cuanto al género: restarles su componente a lo largo de $g$, de modo que queden exactamente a medio camino entre *he* y *she*:
+
+$$ \vec w_{\text{sin sesgo}} = \vec w - (\vec w \cdot g)\, g $$
+
+Las palabras cuyo género forma parte de su significado (*king*, *mother*) se dejan como están.
+
+@@ md 14ca5470a1
+Las proyecciones son ahora exactamente cero y, en este corpus de juguete, la prueba de analogías ya no asigna profesiones "masculinas" a "femeninas". Los vecinos más cercanos de *nurse* ahora están mezclados, pero su antiguo grupo sigue apareciendo primero: parte del sesgo sobrevive en otras direcciones. En la práctica importan dos advertencias:
+
+* Con embeddings reales, investigaciones posteriores (Gonen y Goldberg, 2019) mostraron que este tipo de proyección sobre todo **oculta** el sesgo en lugar de eliminarlo. El género se aprende a lo largo de muchas direcciones a la vez, así que quitar una de ellas deja las profesiones agrupadas según su antiguo género, y un clasificador normalmente aún puede recuperarlo. El sesgo de un modelo es, en última instancia, una propiedad de sus datos de entrenamiento.
+* Los modelos de lenguaje modernos (notebook 08) siguen empezando con una capa de embeddings exactamente como esta, y heredan de la misma forma los patrones de su texto de entrenamiento; por eso evaluar sus sesgos sigue siendo un campo activo.
+
+@@ md 0c5fe15afa
+---
+# Parte B · Traducción secuencia a secuencia con atención
+
+## 6. El problema
+
+La traducción transforma una secuencia en otra de **distinta longitud y distinto orden**:
+
+> *the red car* → *el coche rojo* (el adjetivo pasa detrás del sustantivo)
+> *he does not eat* → *él no come* (el inglés necesita "does", el español no)
+
+La arquitectura **codificador-decodificador** (encoder-decoder; Sutskever et al., 2014) lo resuelve así:
+1. Una RNN **codificadora** lee la frase de origen y la convierte en estados ocultos.
+2. Una RNN **decodificadora** genera la frase de destino palabra a palabra, y cada paso depende de la palabra anterior.
+
+La versión original comprimía toda la frase en **un solo** vector, un cuello de botella para las frases largas. La **atención** (Bahdanau et al., 2014) permite que el decodificador mire hacia atrás a *todos* los estados del codificador en cada paso y elija cuáles importan. Esa idea, llevada al extremo, es el transformer (notebook 07).
+
+```
+           codificador (GRU bidireccional)                decodificador (GRU + atención)
+ the → red → car → <eos>                     <sos> → el → coche → rojo
+   h1    h2    h3    h4  ─────── atención ─────►  en cada paso: pesos α sobre h1..h4,
+                                                   contexto = Σ α_i h_i, predice la siguiente palabra
+```
+
+## 7. Un corpus sintético de inglés → español
+
+Para entrenar en minutos en una CPU, generamos frases a partir de una pequeña gramática: sujeto + (negación) + verbo + artículo + sustantivo + (adjetivo). Aun así contiene las partes difíciles: la conjugación verbal, la concordancia de género (*rojo/roja*, *el/la*), el cambio de orden del adjetivo y el auxiliar inglés "do/does", que desaparece en español.
+
+@@ md 7b8f0244ba
+## 8. El modelo: codificador GRU bidireccional + decodificador con atención
+
+En el paso $t$ del decodificador, con estado oculto $s_{t-1}$, la **atención aditiva (de Bahdanau)** puntúa cada estado del codificador $h_i$, normaliza con softmax y construye un vector de contexto:
+
+$$ e_{t,i} = v^\top \tanh(W_s s_{t-1} + W_h h_i), \qquad \alpha_{t,i} = \text{softmax}_i(e_{t,i}), \qquad c_t = \sum_i \alpha_{t,i} h_i $$
+
+Después, el decodificador consume $[\text{embedding}(y_{t-1}); c_t]$. Tanto el codificador como el decodificador empiezan con una capa `nn.Embedding`: la misma tabla de búsqueda que en la Parte A, pero aquí los vectores se aprenden como subproducto de la traducción en lugar de con un objetivo aparte. Durante el entrenamiento usamos **teacher forcing** (forzado por el profesor): la entrada del decodificador en cada paso es la palabra anterior *real*, no su propia conjetura.
+
+@@ md 0fa89c2bec
+## 9. Visualizar la atención
+
+Cada fila muestra qué palabras en inglés miró el decodificador mientras producía esa palabra en español. Busca:
+* el patrón **cruzado** donde el adjetivo cambia de orden (*red car* → *coche rojo*),
+* "no" atendiendo a "not", y el verbo conjugado atendiendo al verbo en inglés,
+* el pronombre sujeto que a veces atiende a la palabra *contigua* al sujeto en inglés (por ejemplo *ella* → *does*). El codificador es bidireccional, así que cada $h_i$ ya mezcla información de sus vecinas (*does* solo aparece después de *he/she*). Los pesos de atención son una pista útil sobre lo que usa el modelo, no una alineación exacta de palabras.
+
+@@ md bdbe038a35
+## 10. Búsqueda en haz: buscar una frase mejor
+
+`translate` usa **decodificación voraz** (greedy): en cada paso se compromete con la palabra más probable. Eso no es lo mismo que encontrar la *frase* más probable: una palabra que parece la mejor ahora puede obligar a una continuación mala después.
+
+La **búsqueda en haz** (beam search) conserva las $B$ traducciones parciales más probables en cada paso. Cada una se amplía con todas las posibles palabras siguientes, y solo sobreviven las $B$ mejores de todos esos candidatos. Las puntuaciones son sumas de logaritmos de probabilidad, divididas por la longitud para no penalizar injustamente las salidas más largas. Con $B = 1$ se reduce a la decodificación voraz.
+
+El efecto se ve mejor en un modelo que todavía duda, así que comparamos ambos decodificadores con puntos de control guardados al principio de la primera época, además de con el modelo final.
+
+@@ md 139bb1ace3
+El resultado es instructivo: con el modelo poco entrenado, la búsqueda en haz arregla algunas frases pero estropea todavía más, así que la exactitud global *baja* ligeramente. La búsqueda en haz solo puede encontrar traducciones que el modelo ya puntúa alto. Ayuda cuando el error es un *compromiso prematuro* (la frase correcta tenía una puntuación total mayor que la voraz), y no puede ayudar, o incluso perjudica, cuando las propias probabilidades del modelo están mal, como ocurre al principio del entrenamiento. En los sistemas de traducción reales, donde los modelos son buenos pero no seguros, la búsqueda en haz suele dar una mejora modesta y constante, a cambio de $B$ veces más cálculo por frase. Es lo habitual en traducción y reconocimiento de voz; los modelos de chat suelen *muestrear* en su lugar (notebook 08), porque en el texto abierto la frase más probable tiende a ser sosa y repetitiva.
+
+## Resumen
+
+| Idea | Qué hace | Dónde sigue viva |
+|---|---|---|
+| embeddings de palabras | las palabras se convierten en vectores; uso parecido → vectores cercanos; relaciones → direcciones | la primera capa de todo modelo de lenguaje |
+| sesgo en los embeddings | los patrones estadísticos del texto se convierten en geometría, incluidos los indeseados | la evaluación de sesgos de los LLM modernos |
+| codificador-decodificador | leer una entrada completa y después generar una salida de otra longitud | traducción, resumen, reconocimiento de voz |
+| atención | en cada paso de salida, mirar atrás a cada posición de entrada y elegir lo que importa | **el transformer** (notebook 07) |
+| búsqueda en haz | buscar una *frase* probable, no una sucesión de palabras probables | decodificadores de traducción y de voz |
+
+Los pesos de atención que dibujaste en la sección 9 son la semilla del transformer. El notebook 07 elimina por completo la recurrencia y construye una red **solo** con atención y MLP de propagación hacia adelante.
+
+## Ejercicios
+
+1. **Embeddings:** cambia el tamaño del embedding a 8 y a 128. ¿Cómo cambian las puntuaciones de las analogías? ¿Y el tamaño de la ventana (1 frente a 5)?
+2. **Embeddings:** usa solo los vectores centrales, sin centrar (`emb = F.normalize(sg.centre.weight.detach(), dim=1)`). ¿Qué familia de analogías se rompe, y por qué una dirección compartida podría perjudicarla más?
+3. **Embeddings:** elimina la desviación (usa 0.5 para todas las profesiones en `sentence`) y vuelve a entrenar. ¿Qué le pasa a la gráfica del sesgo?
+4. **Embeddings:** después de neutralizar, imprime `nearest("nurse", E=emb_db)`. ¿Qué palabras siguen más cerca y qué dice eso del método?
+5. **Seq2seq:** quita la atención (usa solo el estado final del codificador como contexto). ¿Cuánto baja la exactitud, y recupera algo la búsqueda en haz?
+6. **Seq2seq:** deja fuera del entrenamiento todas las frases que contengan *"white cat"*. ¿Puede el modelo traducir *"the white cat"* correctamente (generalización composicional)?
+
+@@ code
+<<< # 5 words, 3-dimensional embeddings
+>>> # 5 palabras, embeddings de 3 dimensiones
+<<< # word number 2
+>>> # la palabra número 2
+<<< print("one-hot @ E  :"
+>>> print("one-hot @ E     :"
+<<< print("row lookup   :", E_toy[2].numpy().round(3), "  (same thing, much cheaper)")
+>>> print("buscar la fila  :", E_toy[2].numpy().round(3), "  (lo mismo, mucho más barato)")
+<<< # (male, female, royal, young)
+>>> # (masculino, femenino, realeza, joven)
+<<< # occupations the biased corpus pairs mostly with "he"
+>>> # profesiones que el corpus sesgado empareja sobre todo con "he"
+<<< # ... and mostly with "she"
+>>> # ... y sobre todo con "she"
+<<< # people: gender, royalty, age
+>>> # personas: género, realeza, edad
+<<< # geography
+>>> # geografía
+<<< # animals and food: two clear clusters
+>>> # animales y comida: dos grupos claros
+<<< # occupations, with a deliberate gender skew
+>>> # profesiones, con una desviación de género deliberada
+<<< # probability the sentence uses "he"
+>>> # probabilidad de que la frase use "he"
+<<< print(f"vocabulary {V} words, {sum(counts.values()):,} tokens, {len(pairs):,} (centre, context) pairs")
+>>> print(f"vocabulario de {V} palabras, {sum(counts.values()):,} tokens, {len(pairs):,} pares (central, contexto)")
+<<< # v: the embeddings we keep
+>>> # v: los embeddings que conservamos
+<<< # u: used only during training
+>>> # u: solo se usa durante el entrenamiento
+<<< print(f"epoch {epoch + 1}: loss {loss.item():.3f}  ({time.time() - t0:.0f}s)")
+>>> print(f"época {epoch + 1}: pérdida {loss.item():.3f}  ({time.time() - t0:.0f} s)")
+<<< # centred, unit length: a dot product is now a cosine similarity
+>>> # centrados y de longitud 1: ahora un producto escalar es una similitud coseno
+<<< "people (male)"
+>>> "personas (masculino)"
+<<< "people (female)"
+>>> "personas (femenino)"
+<<< "countries"
+>>> "países"
+<<< "capitals"
+>>> "capitales"
+<<< "languages"
+>>> "idiomas"
+<<< "animals": animals, "food": foods
+>>> "animales": animals, "comida": foods
+<<< # PCA by hand: project onto the top-2 directions of variance
+>>> # PCA a mano: proyección sobre las 2 direcciones de mayor varianza
+<<< ax.set_title("32-dimensional word embeddings projected to 2-D with PCA")
+>>> ax.set_title("Embeddings de palabras de 32 dimensiones proyectados a 2D con PCA")
+<<< # "a is to b as c is to ?"; optionally restrict the answer to a list of candidate words
+>>> # "a es a b como c es a ?"; opcionalmente restringe la respuesta a una lista de palabras candidatas
+<<< ("male → female", gender_tests), ("capital → country", capital_tests), ("country → language", language_tests)
+>>> ("masculino → femenino", gender_tests), ("capital → país", capital_tests), ("país → idioma", language_tests)
+<<< print(f"{name:20s} {score(tests):6.1%} of {len(tests)} analogies correct")
+>>> print(f"{name:22s} {score(tests):6.1%} de {len(tests)} analogías correctas")
+<<< ax.set_xlabel("projection on the gender direction  (← she · he →)")
+>>> ax.set_xlabel("proyección sobre la dirección de género  (← she · he →)")
+<<< ax.set_title("Occupations (red) inherit the skew of the training text")
+>>> ax.set_title("Las profesiones (en rojo) heredan la desviación del texto de entrenamiento")
+<<< # for each "he" occupation, which occupation does man -> woman map it to?
+>>> # para cada profesión de "he", ¿a qué profesión la lleva man -> woman?
+<<< print(f"\nman : <he-job> :: woman : ?   (answer restricted to occupations)")
+>>> print(f"\nman : <profesión-he> :: woman : ?   (respuesta restringida a profesiones)")
+<<< print(f"{rate:.0%} of answers are 'she' occupations")
+>>> print(f"el {rate:.0%} de las respuestas son profesiones de 'she'")
+<<< print(f"{'occupation':14s} {'before':>8s} {'after':>8s}")
+>>> print(f"{'profesión':14s} {'antes':>8s} {'después':>8s}")
+<<< print("\nafter neutralising, man : <he-job> :: woman : ?")
+>>> print("\ntras neutralizar, man : <profesión-he> :: woman : ?")
+<<< print(f"{rate_db:.0%} of answers are 'she' occupations (before: {rate:.0%})")
+>>> print(f"el {rate_db:.0%} de las respuestas son profesiones de 'she' (antes: {rate:.0%})")
+<<< print("\nnearest words to 'nurse' after neutralising:"
+>>> print("\npalabras más cercanas a 'nurse' tras neutralizar:"
+<<< # english base, english 3rd person, spanish conjugations for yo/tú/él/nosotros/ellos
+>>> # base en inglés, 3.ª persona en inglés, conjugaciones en español para yo/tú/él/nosotros/ellos
+<<< print(len(pairs), "sentence pairs, e.g.:")
+>>> print(len(pairs), "pares de frases, por ejemplo:")
+<<< print(f"source vocab {len(src_vocab.itos)} words, target vocab {len(tgt_vocab.itos)} words")
+>>> print(f"vocabulario de origen: {len(src_vocab.itos)} palabras, vocabulario de destino: {len(tgt_vocab.itos)} palabras")
+<<< print(f"train {len(train_pairs)} pairs, test {len(test_pairs)} pairs (sentences the model never sees)")
+>>> print(f"entrenamiento: {len(train_pairs)} pares, prueba: {len(test_pairs)} pares (frases que el modelo nunca ve)")
+<<< # initial decoder state
+>>> # estado inicial del decodificador
+<<< # ignore padding
+>>> # se ignora el relleno
+<<< # teacher forcing
+>>> # teacher forcing (forzado por el profesor)
+<<< # greedy decoding
+>>> # decodificación voraz
+<<< print(f"seq2seq parameters: {count_params(s2s):,}")
+>>> print(f"parámetros del seq2seq: {count_params(s2s):,}")
+<<< print("untrained output:"
+>>> print("salida sin entrenar:"
+<<< # kept for the beam-search comparison in section 10
+>>> # se guarda para la comparación con búsqueda en haz de la sección 10
+<<< print(f"epoch {epoch + 1}: loss {np.mean(losses[-100:]):.4f}  ({time.time() - t0:.0f}s)")
+>>> print(f"época {epoch + 1}: pérdida {np.mean(losses[-100:]):.4f}  ({time.time() - t0:.0f} s)")
+<<< print(f"exact-match accuracy on {len(test_pairs)} unseen sentences: {exact / len(test_pairs):.1%}\n")
+>>> print(f"exactitud de coincidencia exacta en {len(test_pairs)} frases no vistas: {exact / len(test_pairs):.1%}\n")
+<<< print(f"EN : {a}\nES*: {b}\nOUT: {hyp}  {'✓' if hyp == b else '✗'}\n")
+>>> print(f"EN    : {a}\nES*   : {b}\nSALIDA: {hyp}  {'✓' if hyp == b else '✗'}\n")
+<<< # (sum of log-probs, tokens, decoder state)
+>>> # (suma de log-probabilidades, tokens, estado del decodificador)
+<<< f"after {k} batches"
+>>> f"tras {k} lotes"
+<<< "fully trained"
+>>> "entrenado del todo"
+<<< "after 40 batches"
+>>> "tras 40 lotes"
+<<< print(f"{'model':22s} {'greedy':>8s} {'beam=4':>8s}   (exact match on {len(test_pairs)} unseen sentences)")
+>>> print(f"{'modelo':22s} {'voraz':>8s} {'haz=4':>8s}   (coincidencia exacta en {len(test_pairs)} frases no vistas)")
+<<< print(f"\nafter 40 batches: beam search fixes {len(fixed)} sentences and breaks {len(broken)}")
+>>> print(f"\ntras 40 lotes: la búsqueda en haz arregla {len(fixed)} frases y estropea {len(broken)}")
+<<< ("fixed by beam search", fixed[:2]), ("broken by beam search", broken[:2])
+>>> ("arreglada por la búsqueda en haz", fixed[:2]), ("estropeada por la búsqueda en haz", broken[:2])
+<<< print(f"\n[{title}]\nEN    : {a}\ngreedy: {gr}\nbeam  : {bm}")
+>>> print(f"\n[{title}]\nEN    : {a}\nvoraz : {gr}\nhaz   : {bm}")

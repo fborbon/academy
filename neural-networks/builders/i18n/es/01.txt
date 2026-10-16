@@ -1,0 +1,215 @@
+@@ file 01_la_neurona_artificial.ipynb
+
+@@ md 04aeea54d2
+# 01 · La neurona artificial
+
+**Objetivo:** construir una sola neurona desde cero con NumPy, entender cada función de activación que encontrarás en la IA moderna (escalón, sigmoide, tanh, ReLU, Leaky ReLU, ELU, GELU, SiLU/Swish, softmax) y entrenar una neurona con descenso de gradiente.
+
+**Contenido**
+1. De la biología a las matemáticas
+2. Una neurona en 10 líneas de NumPy
+3. Funciones de activación (y sus derivadas)
+4. Por qué importa la no linealidad
+5. Saturación, gradientes que se desvanecen y ReLU muertas
+6. Una neurona como compuerta lógica (y por qué XOR la rompe)
+7. Entrenar una neurona: la regla del perceptrón y el descenso de gradiente
+8. Ejercicios
+
+Todo lo que hay aquí se ejecuta en la CPU de un equipo personal en pocos segundos.
+
+@@ md 342b7d5e83
+## 1. De la biología a las matemáticas
+
+Una neurona biológica recibe señales a través de sus **dendritas**, las suma en el **cuerpo celular** y, si el total supera un umbral, **dispara** un pulso eléctrico a lo largo de su **axón**.
+
+La neurona artificial (McCulloch y Pitts 1943, Rosenblatt 1958) conserva solo lo esencial:
+
+$$
+z = \sum_{i=1}^{n} w_i x_i + b = \mathbf{w}^\top \mathbf{x} + b \qquad\qquad a = f(z)
+$$
+
+| Símbolo | Nombre | Papel |
+|---|---|---|
+| $\mathbf{x}$ | entradas | las señales que llegan a la neurona |
+| $\mathbf{w}$ | pesos | cuánto importa cada entrada (se aprenden) |
+| $b$ | sesgo (bias) | desplaza el umbral (se aprende) |
+| $z$ | preactivación / logit | la suma ponderada |
+| $f$ | función de activación | decide la forma de la salida (no lineal) |
+| $a$ | activación / salida | lo que la neurona "dice" |
+
+Geométricamente, $\mathbf{w}^\top\mathbf{x} + b = 0$ es un **hiperplano** (una recta en 2D). Una sola neurona divide su espacio de entrada en dos mitades, y la función de activación decide qué tan brusca es esa división.
+
+@@ md d0472398fc
+## 2. Una neurona en 10 líneas de NumPy
+
+@@ md ab29622f2e
+## 3. Funciones de activación
+
+La función de activación es lo que hace que las redes neuronales sean más potentes que una regresión lineal. Abajo se implementa cada una junto con su **derivada**, porque el entrenamiento (notebook 02) necesita la derivada.
+
+| Función | Fórmula | Rango | Dónde se usa |
+|---|---|---|---|
+| Escalón (Heaviside) | $1$ si $z>0$, si no $0$ | {0,1} | perceptrón original; no es derivable |
+| Sigmoide | $\sigma(z)=\frac{1}{1+e^{-z}}$ | (0,1) | salidas binarias, compuertas de las LSTM |
+| Tanh | $\tanh(z)$ | (-1,1) | RNN, MLP más antiguos |
+| ReLU | $\max(0,z)$ | [0,∞) | la opción por defecto en CNN y MLP |
+| Leaky ReLU | $\max(\alpha z, z)$ | (-∞,∞) | corrige las ReLU "muertas" |
+| ELU | $z$ si $z>0$, si no $\alpha(e^z-1)$ | (-α,∞) | lado negativo suave |
+| GELU | $z\,\Phi(z)$ | ≈(-0.17,∞) | BERT, GPT-2/3, la mayoría de los transformers |
+| SiLU / Swish | $z\,\sigma(z)$ | ≈(-0.28,∞) | LLaMA (dentro de SwiGLU), EfficientNet |
+| Softmax | $\frac{e^{z_i}}{\sum_j e^{z_j}}$ | probabilidades | capa de salida multiclase, atención |
+
+@@ md acf3e9fa0f
+### Comprobar las derivadas numéricamente
+
+Un buen hábito: cada vez que escribas una derivada a mano, compárala con la **diferencia finita** $\frac{f(z+h)-f(z-h)}{2h}$. Reutilizaremos este truco para verificar la retropropagación en el notebook 02.
+
+@@ md 9f4049d9a1
+### Softmax: una activación para una *capa*, no para una sola neurona
+
+Softmax convierte un vector de puntuaciones (logits) en una distribución de probabilidad. Se usa a la salida de los clasificadores y, sobre todo, **dentro de la atención** (notebook 07). Dos detalles prácticos:
+
+* **Estabilidad numérica:** resta $\max(z)$ antes de exponenciar. El resultado es idéntico, pero sin desbordamiento.
+* **Temperatura $T$:** $\text{softmax}(z/T)$. $T$ pequeña → distribución puntiaguda (segura), $T$ grande → distribución plana (insegura). Es exactamente el parámetro de "temperatura" de los modelos tipo ChatGPT (notebook 08).
+
+@@ md 2d29899d78
+## 4. Por qué importa la no linealidad
+
+Si $f$ es la identidad, apilar capas no aporta nada: $W_2(W_1 x + b_1) + b_2 = (W_2W_1)x + (W_2 b_1 + b_2)$ **sigue siendo una única transformación lineal**. Una red lineal de 100 capas es exactamente igual de expresiva que una sola capa.
+
+Con una no linealidad entre capas, la red puede doblar el espacio. La celda de abajo verifica ambas afirmaciones numéricamente.
+
+@@ md e86b841b0d
+## 5. Saturación, gradientes que se desvanecen y ReLU muertas
+
+Durante el entrenamiento, los gradientes se multiplican por $f'(z)$ en cada capa (el notebook 02 muestra por qué). Por eso las gráficas de las derivadas de arriba son tan importantes:
+
+* **Sigmoide:** $\sigma'(z) \le 0.25$. Diez capas sigmoides multiplican el gradiente como mucho por $0.25^{10} \approx 10^{-6}$. Las primeras capas dejan de aprender: es el **problema del gradiente que se desvanece**. Para $|z|$ grande la neurona está **saturada** y su gradiente es prácticamente 0.
+* **Tanh:** derivada de hasta 1 y centrada en cero, mejor, pero también se satura.
+* **ReLU:** derivada exactamente 1 para $z>0$: los gradientes pasan sin cambios. Es la razón principal por la que el aprendizaje profundo despegó hacia 2012. Inconveniente: si $z<0$ para todas las entradas, la derivada es 0 para siempre y la neurona queda **muerta**.
+* **Leaky ReLU / ELU / GELU / SiLU:** mantienen un gradiente pequeño pero distinto de cero para entradas negativas, así que las neuronas pueden recuperarse.
+
+@@ md c5af717627
+## 6. Una neurona como compuerta lógica
+
+Con una activación escalón, elegir los pesos a mano da las compuertas lógicas clásicas. AND se activa solo si ambas entradas valen 1; OR se activa si al menos una vale 1.
+
+**XOR** (exactamente una entrada vale 1) es imposible: no existe una sola recta que separe $\{(0,1),(1,0)\}$ de $\{(0,0),(1,1)\}$. Minsky y Papert lo señalaron en 1969 y contribuyó al primer "invierno de la IA". La solución es una **red** de neuronas, que el notebook 02 construye y entrena.
+
+@@ md 2dfa66a475
+## 7. Entrenar una neurona
+
+Elegir los pesos a mano no escala. Queremos que la neurona los **aprenda** a partir de ejemplos.
+
+### 7a. La regla de aprendizaje del perceptrón (Rosenblatt, 1958)
+
+Para cada ejemplo mal clasificado, empuja un poco los pesos hacia él:
+$$\mathbf{w} \leftarrow \mathbf{w} + \eta\,(y - \hat y)\,\mathbf{x}, \qquad b \leftarrow b + \eta\,(y-\hat y)$$
+Está garantizado que converge **si** los datos son linealmente separables.
+
+@@ md 1e29fc4888
+### 7b. Descenso de gradiente con una neurona sigmoide (= regresión logística)
+
+La función escalón tiene derivada cero, así que no podemos preguntar "¿en qué dirección debe moverse cada peso para reducir el error?". La cambiamos por la **sigmoide**, que es suave, interpretamos la salida como una probabilidad $\hat y = \sigma(z)$ y minimizamos la pérdida de **entropía cruzada binaria**:
+
+$$ L = -\frac{1}{N}\sum_i \big[y_i \log \hat y_i + (1-y_i)\log(1-\hat y_i)\big] $$
+
+La regla de la cadena da un gradiente bellamente simple (la derivada de la sigmoide cancela el logaritmo):
+
+$$ \frac{\partial L}{\partial z_i} = \frac{\hat y_i - y_i}{N}, \qquad \frac{\partial L}{\partial \mathbf{w}} = X^\top \frac{\hat{\mathbf{y}} - \mathbf{y}}{N}, \qquad \frac{\partial L}{\partial b} = \text{media}(\hat{\mathbf{y}} - \mathbf{y}) $$
+
+Después se repite: $\mathbf{w} \leftarrow \mathbf{w} - \eta \nabla_\mathbf{w} L$. Este bucle **es** toda la idea del entrenamiento, y todos los modelos, hasta los de la escala de GPT, lo usan.
+
+@@ md 8e433da7ca
+### La misma neurona, el mismo resultado, en PyTorch
+
+Frameworks como PyTorch calculan los gradientes por nosotros (**diferenciación automática**). El notebook 02 abre esa caja negra.
+
+@@ md c917e1eb4d
+## Ideas clave
+
+* Una neurona es una **suma ponderada + sesgo + activación no lineal**. Dibuja un hiperplano.
+* Las activaciones se eligen por el **comportamiento de su gradiente**: las funciones de la familia ReLU mantienen vivos los gradientes; la sigmoide y la tanh se saturan. Los transformers modernos usan **GELU** o **SiLU** (variantes suaves de ReLU).
+* **Softmax** convierte puntuaciones en probabilidades; la temperatura controla qué tan marcadas son.
+* Entrenar = definir una pérdida, calcular su gradiente con la regla de la cadena, dar un paso cuesta abajo. Repetir.
+* Una neurona no puede resolver XOR. Necesitamos **capas**, que son el tema del **notebook 02**.
+
+## Ejercicios
+
+1. Entrena la neurona sigmoide con `eta = 5.0` y con `eta = 0.01`. ¿Qué le pasa a la curva de pérdida?
+2. Sustituye `sigmoid` por `tanh` en la sección 7b (transforma las etiquetas a −1/+1 y usa el error cuadrático medio). ¿Converge más rápido?
+3. Encuentra a mano los pesos de una compuerta NAND. ¿Por qué se dice que NAND es "universal"?
+4. Implementa la activación **Mish** $z\tanh(\ln(1+e^z))$ y su derivada; verifícala con diferencias finitas.
+5. Genera nubes de puntos que se solapen mucho. ¿Qué le pasa a la regla del perceptrón? ¿Y al descenso de gradiente?
+
+@@ code
+<<< # small random weights
+>>> # pesos aleatorios pequeños
+<<< # weighted sum (works for one sample or a batch)
+>>> # suma ponderada (funciona con una muestra o con un lote)
+<<< print("weights:", n.w.round(3), " bias:", n.b)
+>>> print("pesos:", n.w.round(3), " sesgo:", n.b)
+<<< print("output :", n.forward(x).round(3))
+>>> print("salida:", n.forward(x).round(3))
+<<< print("check  :", (x * n.w).sum().round(3))
+>>> print("control:", (x * n.w).sum().round(3))
+<<< # zero everywhere (undefined at 0): useless for gradient descent
+>>> # cero en todas partes (indefinida en 0): inútil para el descenso de gradiente
+<<< # exact: z * Phi(z)
+>>> # exacta: z * Phi(z)
+<<< # avoid exactly 0 where ReLU-like kinks live
+>>> # evitamos el 0 exacto, donde están los quiebres tipo ReLU
+<<< # stability trick
+>>> # truco de estabilidad
+<<< print("naive exp on huge logits overflows:", np.exp(np.array([1000.0])))
+>>> print("exp ingenua con logits enormes desborda:", np.exp(np.array([1000.0])))
+<<< print("stable softmax on huge logits     :", softmax([1000.0, 999.0]).round(4))
+>>> print("softmax estable con logits enormes    :", softmax([1000.0, 999.0]).round(4))
+<<< ax.set_title(f"temperature T = {T}")
+>>> ax.set_title(f"temperatura T = {T}")
+<<< axes[0].set_ylabel("probability")
+>>> axes[0].set_ylabel("probabilidad")
+<<< # collapse into one layer
+>>> # se colapsa en una sola capa
+<<< print("two linear layers == one linear layer:", np.allclose(deep_linear, X @ W.T + b))
+>>> print("dos capas lineales == una capa lineal:", np.allclose(deep_linear, X @ W.T + b))
+<<< # With ReLU in between, the function is piecewise linear: it can bend.
+>>> # Con una ReLU en medio, la función es lineal a trozos: puede doblarse.
+<<< label="linear stack (a straight line)")
+>>> label="capas lineales apiladas (una recta)")
+<<< label="with ReLU (bends at each kink)")
+>>> label="con ReLU (se dobla en cada quiebre)")
+<<< plt.title("Same weights, with and without a non-linearity")
+>>> plt.title("Mismos pesos, con y sin no linealidad")
+<<< plt.xlabel("number of layers"); plt.ylabel("gradient scale (best case)")
+>>> plt.xlabel("número de capas"); plt.ylabel("escala del gradiente (mejor caso)")
+<<< plt.title("How much gradient survives after N layers")
+>>> plt.title("Cuánto gradiente sobrevive tras N capas")
+<<< # Dead ReLU demo: a neuron with a very negative bias never activates.
+>>> # Demostración de ReLU muerta: una neurona con un sesgo muy negativo nunca se activa.
+<<< print("fraction of inputs where the dead neuron fires:", (dead.forward(X) > 0).mean())
+>>> print("fracción de entradas en las que la neurona muerta se activa:", (dead.forward(X) > 0).mean())
+<<< print("its gradient w.r.t. z is therefore always     :", d_relu(X @ dead.w + dead.b).max())
+>>> print("por tanto, su gradiente respecto a z siempre es           :", d_relu(X @ dead.w + dead.b).max())
+<<< label="decision line")
+>>> label="recta de decisión")
+<<< ax.set_title(f"{name}: neuron output {out.astype(int)}  target {y}")
+>>> ax.set_title(f"{name}: salida {out.astype(int)}  objetivo {y}")
+<<< ax.set_title("XOR: no single line separates the colours")
+>>> ax.set_title("XOR: ninguna recta separa los colores")
+<<< print("misclassifications per epoch:", errors_per_epoch)
+>>> print("errores de clasificación por época:", errors_per_epoch)
+<<< "Perceptron decision boundary")
+>>> "Frontera de decisión del perceptrón")
+<<< # deliberately bad start so we can watch it learn
+>>> # inicio deliberadamente malo para ver cómo aprende
+<<< axes[0].set_title("training loss (BCE)"); axes[0].set_xlabel("iteration")
+>>> axes[0].set_title("pérdida de entrenamiento (BCE)"); axes[0].set_xlabel("iteración")
+<<< f"iteration {it}")
+>>> f"iteración {it}")
+<<< print(f"final loss {history[-1]:.3f}, accuracy {acc:.1%}, w={neuron.w.round(2)}, b={neuron.b:.2f}")
+>>> print(f"pérdida final {history[-1]:.3f}, exactitud {acc:.1%}, w={neuron.w.round(2)}, b={neuron.b:.2f}")
+<<< # w and b
+>>> # w y b
+<<< print(f"PyTorch loss {loss.item():.3f}, accuracy {((layer(Xt).squeeze(1) > 0).float() == yt).float().mean():.1%}")
+>>> print(f"PyTorch: pérdida {loss.item():.3f}, exactitud {((layer(Xt).squeeze(1) > 0).float() == yt).float().mean():.1%}")

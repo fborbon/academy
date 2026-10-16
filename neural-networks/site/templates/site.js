@@ -1,6 +1,12 @@
 (function () {
   var KEY = "nn1001-done";
   var MODULES = ["01", "02", "03", "04", "05", "06", "07", "08", "09"];
+  var T = window.NN1001_I18N || {};
+  function fmt(key, vars, fallback) {
+    var s = T[key] || fallback;
+    Object.keys(vars).forEach(function (k) { s = s.split("{" + k + "}").join(vars[k]); });
+    return s;
+  }
 
   function load() {
     try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch (e) { return []; }
@@ -17,12 +23,14 @@
     var share = done.length / MODULES.length;
     document.querySelectorAll(".progress-bar").forEach(function (b) { b.style.width = (share * 100).toFixed(0) + "%"; });
     document.querySelectorAll(".progress-label").forEach(function (l) {
-      l.textContent = done.length ? done.length + " of " + MODULES.length + " modules completed" : "Not started yet";
+      l.textContent = done.length ? fmt("js_progress", { done: done.length, total: MODULES.length }, "{done} of {total} modules completed")
+                                  : fmt("js_none", {}, "Not started yet");
     });
     var btn = document.querySelector(".complete-btn");
     if (btn) {
       var n = btn.getAttribute("data-module");
-      btn.textContent = done.indexOf(n) >= 0 ? "✓ Module " + n + " completed (click to undo)" : "Mark module " + n + " as complete";
+      btn.textContent = done.indexOf(n) >= 0 ? fmt("js_done", { n: n }, "✓ Module {n} completed (click to undo)")
+                                             : fmt("js_mark", { n: n }, "Mark module {n} as complete");
     }
     var resume = document.querySelector(".resume");
     if (resume && done.length && done.length < MODULES.length) {
@@ -31,7 +39,7 @@
       if (card) {
         var link = resume.querySelector(".resume-link");
         link.href = card.getAttribute("href");
-        link.textContent = "Continue with module " + next + ": " + card.querySelector("h3").textContent + " →";
+        link.textContent = fmt("js_resume", { n: next, title: card.querySelector("h3").textContent }, "Continue with module {n}: {title} →");
         resume.hidden = false;
       }
     }

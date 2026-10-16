@@ -4,6 +4,8 @@ Nine hands-on Jupyter notebooks that build modern deep learning from first princ
 
 **Course website:** [neural-networks.academy.forwardforecasting.eu](https://neural-networks.academy.forwardforecasting.eu/) renders every notebook with its saved outputs, a syllabus, progress tracking, and download / Open-in-Colab links.
 
+**Versión en español:** the whole course is also available in Spanish, notebooks included, at [neural-networks.academy.forwardforecasting.eu/es/](https://neural-networks.academy.forwardforecasting.eu/es/) and in the [`es/`](es/) folder.
+
 ## Table of Contents
 
 - [The notebooks](#the-notebooks)
@@ -13,6 +15,7 @@ Nine hands-on Jupyter notebooks that build modern deep learning from first princ
 - [Libraries and techniques explained](#libraries-and-techniques-explained)
 - [Why these models and datasets](#why-these-models-and-datasets)
 - [Repository layout](#repository-layout)
+- [The Spanish edition](#the-spanish-edition)
 - [Getting started](#getting-started)
 - [The course website and its deployment](#the-course-website-and-its-deployment)
 - [Runtime and cost](#runtime-and-cost)
@@ -135,21 +138,47 @@ Key AI techniques, and where each one is introduced:
 ```
 neural-networks/
 ├── 01_ ... 09_*.ipynb      the course, saved with outputs
+├── es/                     the Spanish edition of the same nine notebooks, saved with outputs
 ├── builders/               Python scripts that generate each notebook (source of truth for the text and code)
-│   ├── nbhelper.py         md() / code() / save() helpers
-│   └── build_01.py ... build_09.py
-├── site/                   the course website generator
+│   ├── nbhelper.py         md() / code() / save() helpers, plus the translation layer
+│   ├── build_01.py ... build_09.py
+│   ├── i18n/es/01.txt ...  Spanish translations, one file per notebook
+│   ├── rebuild.py          regenerate / execute / check notebooks without losing outputs
+│   └── i18n_skeleton.py    print a notebook's translatable cells, to write or update a translation
+├── site/                   the course website generator (English at /, Spanish at /es/)
 │   ├── build_site.py       renders the notebooks into site/dist/ (not committed)
 │   └── templates/          page layouts, CSS and JS
 └── requirements.txt
 ```
 
-To change a notebook, edit its builder, regenerate and re-execute it:
+To change a notebook, edit its builder, then regenerate it through `rebuild.py` (running a builder directly writes a notebook **without** outputs):
 
 ```bash
-python3 builders/build_04.py
-jupyter nbconvert --to notebook --execute --inplace 04_convolutional_networks.ipynb
+python3 builders/rebuild.py 04                         # text-only change: outputs are carried over
+python3 builders/rebuild.py 04 --execute               # code change: regenerate and re-run
+python3 builders/rebuild.py 04 --lang es --execute     # the same for the Spanish edition
+python3 builders/rebuild.py all --check                # what CI runs: everything matches its builder
 ```
+
+## The Spanish edition
+
+The Spanish notebooks are not a fork. They are generated from the **same builders**, with `NB_LANG=es`:
+
+- every markdown cell is replaced by its translation from `builders/i18n/es/NN.txt`, looked up by a fingerprint of the English text;
+- code cells get a short list of exact text replacements from the same file, limited to comments and display labels (plot titles, printed headers). Code logic and data never change, so both editions produce the same numbers;
+- if an English cell changes and its translation is not updated, or a code replacement no longer matches, the build stops with a list of what is out of date. CI runs `rebuild.py all --check` on every push, so the two editions cannot drift apart silently.
+
+Updating a translation after editing an English notebook:
+
+```bash
+python3 builders/i18n_skeleton.py 04 --missing     # the English cells that need a (new) Spanish version
+# edit builders/i18n/es/04.txt, then:
+python3 builders/rebuild.py 04 --lang es           # or --execute if the code changed
+```
+
+Two datasets stay in English on purpose, and the Spanish notebooks explain why: the word-embedding corpus in notebook 06 (so the analogies match the published results) and the GPT training corpus in notebook 08 (whose translation task is English to Spanish). The Spanish text uses neutral Spanish that reads naturally in both Spain and Latin America.
+
+The website adds an English/Spanish switch on every page and `hreflang` links between the two editions. Code, outputs and equations are marked `translate="no"`, so the page translator offered for other languages never mangles them.
 
 ## Getting started
 
@@ -177,7 +206,8 @@ Run notebooks one at a time: several PyTorch kernels in parallel compete for the
 
 ```mermaid
 flowchart LR
-    A[push to main<br/>notebooks or site/] --> B[GitHub Actions<br/>build_site.py]
+    A[push to main<br/>notebooks, builders or site/] --> K[GitHub Actions<br/>rebuild.py all --check]
+    K --> B[build_site.py<br/>English + Spanish]
     B --> C[copy site/dist into the<br/>portfolio site repository]
     C --> D[that repository's webhook<br/>deploys to the web server]
     D --> E[nginx serves<br/>neural-networks.academy.forwardforecasting.eu]
@@ -199,13 +229,13 @@ Everything in the course runs locally on the CPU. There are **no paid APIs**: no
 | Item | Cost |
 |---|---|
 | LLM / AI API calls | none ($0) |
-| Compute to run the notebooks | your own machine, about 40 minutes to run all nine end to end on an 8-core laptop CPU (16 of them in notebook 08) |
+| Compute to run the notebooks | your own machine, about 40 minutes to run all nine end to end on an 8-core laptop CPU (16 of them in notebook 08); the same again for the Spanish edition |
 | Website hosting | static files on the existing web server that already hosts the other forwardforecasting.eu sites: no new instance, no extra AWS cost |
 | DNS | one extra A record in an existing Route 53 hosted zone (no extra charge; the zone's $0.50/month is already paid) |
 | TLS certificate | Let's Encrypt, free, renewed automatically |
 | CI | GitHub Actions, about 1 minute per deploy, within the free tier |
-| Bandwidth | about 7 MB per full read of the course, mostly the notebook figures; negligible at the current traffic |
-| Disk | about 7 MB of notebooks plus about 7 MB for the rendered site |
+| Bandwidth | about 7 MB per full read of the course in one language, mostly the notebook figures; negligible at the current traffic |
+| Disk | about 5.5 MB of notebooks per language (11 MB for English + Spanish) plus about 24 MB for the rendered bilingual site |
 
 ## References
 

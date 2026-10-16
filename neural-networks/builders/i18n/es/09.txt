@@ -1,0 +1,200 @@
+@@ file 09_vision_mas_alla_de_la_clasificacion.ipynb
+
+@@ md e5c8e9540d
+# 09 · Visión más allá de la clasificación: segmentación, detección y similitud
+
+El notebook 04 respondía una pregunta por imagen: *¿qué dígito es este?* La mayoría de los sistemas reales de visión artificial necesitan respuestas más ricas:
+
+| Tarea | Salida | Usos de ejemplo |
+|---|---|---|
+| clasificación (notebook 04) | una etiqueta por imagen | etiquetado de fotos, control de calidad |
+| **segmentación semántica** | una etiqueta por **píxel** | imagen médica, usos del suelo desde satélite, "zona transitable" en conducción autónoma |
+| **detección de objetos** | una **caja + etiqueta** por objeto | conteo, seguimiento, conducción autónoma, estanterías de tiendas |
+| **aprendizaje métrico** | un **embedding** donde la distancia significa similitud | verificación facial, búsqueda de imágenes, reconocer clases nunca vistas en el entrenamiento |
+
+Construimos una versión pequeña y honesta de cada una, todo en una CPU en pocos minutos. Las imágenes se generan en el notebook: escenas sencillas de círculos, cuadrados y triángulos, con máscaras y cajas de referencia exactas. Así cada métrica es exacta y podemos mirar dentro de los modelos sin descargar ningún conjunto de datos.
+
+@@ md d8286a1180
+## 1. Un mundo sintético de formas
+
+Cada imagen de 32×32 contiene de 1 a 3 formas (círculo, cuadrado o triángulo) de tamaño, posición y brillo aleatorios, sobre un fondo ruidoso e iluminado de forma desigual. Para cada imagen guardamos dos tipos de referencia:
+
+* una **máscara**: la clase de cada píxel (0 = fondo, 1 = círculo, 2 = cuadrado, 3 = triángulo);
+* una lista de **cajas**: $(x_{min}, y_{min}, x_{max}, y_{max}, \text{clase})$ para cada objeto.
+
+@@ md b1d9815f07
+Fíjate en el desequilibrio entre clases: la mayoría de los píxeles son fondo. Un modelo que predijera "fondo" en todas partes ya tendría alrededor de un 80 % de "exactitud", y por eso la segmentación se evalúa por clase con la **IoU** (abajo), no con la exactitud por píxel.
+
+## 2. Segmentación semántica con una pequeña U-Net
+
+Un clasificador comprime la imagen hasta un solo vector. Un segmentador debe producir una salida **del mismo tamaño que la entrada**. La **U-Net** (Ronneberger et al., 2015) hace ambas cosas:
+
+* un **codificador** (camino de contracción) de convoluciones y pooling construye *qué* hay en la imagen, con una resolución cada vez menor;
+* un **decodificador** (camino de expansión) de convoluciones transpuestas vuelve a aumentar la resolución para decir *dónde*;
+* las **conexiones de salto** copian las características de alta resolución del codificador directamente al decodificador a la misma escala, para poder recuperar el detalle fino que el pooling perdió.
+
+```
+32×32 ─conv─► e1 (16c) ───────────────── salto ───────────────► concat ─conv─► 32×32 × 4 clases
+                │ pool                                             ▲ subir
+               16×16 ─conv─► e2 (32c) ─────── salto ───► concat ─conv─┘
+                               │ pool                      ▲ subir
+                              8×8 ─conv─► cuello de botella (64c) ┘
+```
+
+Una **convolución transpuesta** (`ConvTranspose2d`, paso 2) es el opuesto aprendible del pooling: cada píxel de entrada "pinta" un parche de 2×2 de la salida con pesos aprendidos.
+
+@@ md fa827dbfa2
+La **intersección sobre la unión** (IoU) de una clase es $\frac{|\text{predicho} \cap \text{real}|}{|\text{predicho} \cup \text{real}|}$: 1 es perfecto y, a diferencia de la exactitud por píxel, el enorme fondo no puede inflarla.
+
+@@ md e2dc360713
+Ambas redes funcionan bien con estas formas limpias; las conexiones de salto aportan un par de puntos de IoU, y la diferencia se concentra justo donde cabría esperar: en los bordes, las esquinas y las puntas de los triángulos, que el decodificador sin saltos tiene que reconstruir a partir de un resumen de 8×8. Con saltos, el decodificador sabe *qué* gracias al cuello de botella y *dónde* gracias a las características de alta resolución copiadas. En imágenes reales con estructura fina (vasos sanguíneos, bordes de carreteras) la diferencia es mucho mayor, y por eso la forma de U-Net se convirtió en estándar. La misma forma de codificador-decodificador con saltos se usa en imagen médica, en cartografía por satélite y como red de eliminación de ruido dentro de los modelos de difusión de imágenes.
+
+## 3. Detección de objetos al estilo YOLO
+
+La segmentación etiqueta píxeles, pero no separa dos objetos de la misma clase que se tocan ni los cuenta. La **detección** produce una caja por objeto.
+
+La idea de **YOLO** ("You Only Look Once", solo miras una vez; Redmon et al., 2015) convierte la detección en un único problema de regresión. Se divide la imagen en una cuadrícula de $S \times S$ (aquí 4×4 celdas de 8×8 píxeles). La celda que contiene el **centro** de un objeto es la responsable de él, y predice:
+
+| Salida | Significado | Pérdida |
+|---|---|---|
+| $p_{obj}$ | ¿hay un objeto centrado en esta celda? | entropía cruzada binaria, todas las celdas |
+| $t_x, t_y$ | posición del centro dentro de la celda (0-1) | error cuadrático, solo celdas responsables |
+| $t_w, t_h$ | anchura y altura de la caja respecto a la imagen | error cuadrático sobre $\sqrt{\cdot}$, solo celdas responsables |
+| puntuaciones de clase | círculo / cuadrado / triángulo | entropía cruzada, solo celdas responsables |
+
+Así que toda la red es una CNN cuya salida es un tensor de $4 \times 4 \times 8$. (El YOLO real añade varias cajas "ancla" por celda para que una celda pueda contener más de un objeto; nosotros nos quedamos con una.)
+
+@@ md 0eb0ac192e
+### De las salidas de la cuadrícula a las cajas: umbral y supresión de no máximos
+
+La decodificación convierte cada celda segura de nuevo en una caja en coordenadas de píxel. A veces dos celdas vecinas reclaman el mismo objeto, así que el último paso es la **supresión de no máximos (NMS)**: ordenar las cajas por confianza, quedarse con la mejor, borrar todas las cajas restantes de la misma clase que se solapen con ella más de un umbral de IoU, y repetir.
+
+Una caja predicha cuenta como **verdadero positivo** si se solapa con una caja de referencia aún no emparejada de la misma clase con IoU ≥ 0,5.
+
+@@ md f44ff7010b
+La **precisión** es la proporción de cajas predichas que son correctas; la **exhaustividad** (recall) es la proporción de objetos reales que se encontraron. El umbral de confianza intercambia una por otra, y los bancos de pruebas de detección resumen toda la curva como *precisión media promedio* (mAP). Veamos algunas detecciones:
+
+@@ md b2b42c3abe
+Una sola evaluación de la red por imagen da todas las cajas a la vez, y por eso los detectores al estilo YOLO funcionan en tiempo real. Su debilidad clásica se ve en el paso de codificación: una celda solo puede contener un objeto, así que los objetos pequeños muy juntos son difíciles. Los detectores modernos usan varias cajas ancla por celda, varias resoluciones de cuadrícula y (en los modelos tipo DETR) atención en lugar de una cuadrícula.
+
+## 4. Aprendizaje métrico: aprender qué significa "lo mismo"
+
+Un clasificador solo puede producir las clases con las que se entrenó. El reconocimiento facial no puede funcionar así: un teléfono debe reconocer a su dueño a partir de una sola foto de registro, sin volver a entrenar. La solución (FaceNet, Schroff et al., 2015; y antes las redes siamesas) es aprender un **embedding** $f(x)$ en el que las imágenes de la misma identidad estén cerca y las de identidades distintas, lejos. Entonces:
+
+* **verificación**: es la misma persona si $\|f(x_1) - f(x_2)\| < \tau$;
+* **reconocimiento**: el embedding registrado más cercano.
+
+La **pérdida triplete** entrena esto directamente. Se toma un *ancla* $a$, un *positivo* $p$ (misma identidad) y un *negativo* $n$ (identidad distinta):
+
+$$ \mathcal{L} = \max\big(0,\; \|f(a) - f(p)\|^2 - \|f(a) - f(n)\|^2 + \alpha\big) $$
+
+Es cero en cuanto el negativo está más lejos que el positivo por al menos el margen $\alpha$.
+
+Usamos dígitos manuscritos como "identidades" de sustitución. La red se entrena **solo con los dígitos del 0 al 6**. Después la probamos con imágenes nuevas de esos dígitos y con el **7, el 8 y el 9**, que nunca ha visto: la posición en la que está un sistema facial cuando conoce a una persona nueva.
+
+@@ md ffce6f9bc9
+Los tripletes aleatorios son casi siempre *fáciles* (un "1" y un "0" ya están lejos), así que enseguida dejan de enseñar nada. La **minería de lo más difícil del lote** (batch-hard mining; Hermans et al., 2017) construye cada lote con unas pocas identidades con varias imágenes cada una y, para cada ancla, usa solo su positivo más difícil y su negativo más difícil dentro del lote.
+
+Ahora la prueba, en el escenario de un sistema de reconocimiento facial: **registrar una imagen por identidad** y después reconocer cada una de las demás imágenes por su embedding registrado más cercano. La ejecutamos dos veces: con imágenes nuevas de los dígitos vistos en el entrenamiento (0-6) y con los dígitos que la red nunca ha visto (7-9). Los píxeles en bruto son la referencia.
+
+@@ md 66998dd780
+Con las identidades con las que se entrenó, el embedding es muchísimo mejor que los píxeles en bruto: las distancias "iguales" y "distintas" se separan limpiamente, y una imagen de registro basta. Con los dígitos no vistos el panorama es mucho menos halagador. Según la semilla aleatoria, el embedding queda en torno a la referencia de píxeles en bruto, a veces un poco por encima y a veces por debajo (prueba con varias semillas).
+
+Es un resultado honesto e importante, no un fallo. **Siete identidades de entrenamiento no bastan para aprender una noción general de "lo mismo".** Con tan pocas, la red aprende características que separan *esos siete dígitos* y no tiene ningún motivo para organizar bien el resto del espacio. FaceNet se entrenó con unos 8 millones de identidades precisamente por esto: generalizar a identidades nuevas es una propiedad que se compra con *diversidad de identidades*, no con más imágenes de las mismas pocas. La misma lección vale para cualquier modelo de embeddings, incluidos los embeddings de texto que hay detrás de la generación aumentada por recuperación (RAG): funcionan con entradas nuevas porque se entrenaron con una variedad enorme de ellas.
+
+## Ideas clave
+
+* **Segmentación** = un clasificador en cada píxel. Las redes codificador-decodificador con **conexiones de salto** (U-Net) recuperan el detalle que el pooling descarta. Se evalúa con la **IoU** por clase, no con la exactitud por píxel.
+* La **detección** puede plantearse como una sola regresión sobre una cuadrícula (YOLO): presencia de objeto + caja + clase por celda, decodificadas con un umbral y **supresión de no máximos**. La precisión y la exhaustividad se intercambian a través del umbral de confianza.
+* El **aprendizaje métrico** con una pérdida triplete aprende un embedding donde la distancia significa similitud, la base de la verificación facial y de la búsqueda por similitud. Generalizar a identidades nunca vistas en el entrenamiento requiere entrenar con *muchas* identidades.
+
+## Ejercicios
+
+1. Entrena la U-Net durante 2 épocas en lugar de 8. ¿Qué clase sufre más y por qué podrían ser los triángulos los más difíciles?
+2. Añade una cuarta forma (por ejemplo un anillo: un círculo con un agujero) a `shape_mask` y vuelve a entrenar el segmentador y el detector.
+3. En el detector, cambia la cuadrícula a 8×8 celdas de 4 píxeles. ¿Cómo cambian la precisión y la exhaustividad, y por qué las cuadrículas finas ayudan en escenas abarrotadas?
+4. Quita la NMS de `decode` (conserva todas las cajas por encima del umbral). ¿Cómo cambia la precisión?
+5. Entrena la red triplete con márgenes de 0,1 y 0,5, y con tres semillas aleatorias para cada uno. ¿Qué tan estable es la exactitud con un solo ejemplo en los dígitos no vistos, comparada con los vistos?
+6. Entrena solo con los dígitos 0-4 y prueba con 5-9, y después entrena con 0-7 y prueba con 8-9. ¿Mejora la exactitud con identidades no vistas a medida que crece el número de identidades de entrenamiento?
+
+@@ code
+<<< CLASSES = ["background", "circle", "square", "triangle"]
+>>> CLASSES = ["fondo", "círculo", "cuadrado", "triángulo"]
+<<< # upward triangle inscribed in the box [cx-r, cx+r] x [cy-r, cy+r]
+>>> # triángulo hacia arriba inscrito en la caja [cx-r, cx+r] x [cy-r, cy+r]
+<<< # uneven lighting
+>>> # iluminación desigual
+<<< # avoid heavy overlaps
+>>> # se evitan solapamientos grandes
+<<< axes[0, 0].set_title("image + boxes", loc="left"); axes[1, 0].set_title("pixel mask", loc="left")
+>>> axes[0, 0].set_title("imagen + cajas", loc="left"); axes[1, 0].set_title("máscara por píxel", loc="left")
+<<< print("pixel share per class:"
+>>> print("proporción de píxeles por clase:"
+<<< # 1x1 conv: a classifier at every pixel
+>>> # conv. 1x1: un clasificador en cada píxel
+<<< # (batch, 4, 32, 32): class scores per pixel
+>>> # (lote, 4, 32, 32): puntuaciones de clase por píxel
+<<< # cross-entropy averaged over every pixel
+>>> # entropía cruzada promediada sobre todos los píxeles
+<<< "no skip connections"
+>>> "sin conexiones de salto"
+<<< print(f"{name:20s} params {count_params(model):,}  ({time.time() - t0:.0f}s)\n   pixel accuracy {(pred == M_te).float().mean().item():.1%}   "
+>>> print(f"{name:24s} parámetros {count_params(model):,}  ({time.time() - t0:.0f} s)\n   exactitud por píxel {(pred == M_te).float().mean().item():.1%}   "
+<<< f"   mean IoU (objects) {np.mean(ious[1:]):.2f}")
+>>> f"   IoU media (objetos) {np.mean(ious[1:]):.2f}")
+<<< ["input", "true mask", "U-Net", "no skips"]
+>>> ["entrada", "máscara real", "U-Net", "sin saltos"]
+<<< plt.suptitle("purple-blue = background, teal = circle, green = square, yellow = triangle", y=0.92)
+>>> plt.suptitle("morado azulado = fondo, verde azulado = círculo, verde = cuadrado, amarillo = triángulo", y=0.92)
+<<< # obj, tx, ty, tw, th, class
+>>> # obj, tx, ty, tw, th, clase
+<<< print(f"cells holding more than one object centre (cannot be represented, so ignored): "
+>>> print(f"celdas con más de un centro de objeto (no se pueden representar, así que se ignoran): "
+<<< f"{sum(len(b) for b in B_tr) - int(T_tr[..., 0].sum())} of {sum(len(b) for b in B_tr)} training objects")
+>>> f"{sum(len(b) for b in B_tr) - int(T_tr[..., 0].sum())} de {sum(len(b) for b in B_tr)} objetos de entrenamiento")
+<<< # one prediction vector per grid cell
+>>> # un vector de predicción por celda de la cuadrícula
+<<< # (batch, 4, 4, 8)
+>>> # (lote, 4, 4, 8)
+<<< print(f"detector: {count_params(det):,} params, trained in {time.time() - t0:.0f}s, final loss {loss.item():.3f}")
+>>> print(f"detector: {count_params(det):,} parámetros, entrenado en {time.time() - t0:.0f} s, pérdida final {loss.item():.3f}")
+<<< # non-maximum suppression
+>>> # supresión de no máximos
+<<< print(f"{'threshold':>9s} {'precision':>10s} {'recall':>8s}")
+>>> print(f"{'umbral':>9s} {'precisión':>10s} {'exhaust.':>8s}")
+<<< plt.suptitle("Dashed white = ground truth, coloured = predictions (grey lines show the 4×4 grid)")
+>>> plt.suptitle("Blanco discontinuo = referencia, en color = predicciones (las líneas grises muestran la cuadrícula de 4×4)")
+<<< # training images of digits 0-6
+>>> # imágenes de entrenamiento de los dígitos 0-6
+<<< # held-out images of the SAME digits
+>>> # imágenes reservadas de los MISMOS dígitos
+<<< # digits 7-9, never seen in training
+>>> # dígitos 7-9, nunca vistos en el entrenamiento
+<<< # embeddings live on the unit sphere
+>>> # los embeddings viven en la esfera unidad
+<<< # P identities x K images each, so every anchor has positives and negatives in the same batch
+>>> # P identidades x K imágenes cada una, para que cada ancla tenga positivos y negativos en el mismo lote
+<<< # for each anchor: its FARTHEST positive and its CLOSEST negative in the batch (the hardest triplet)
+>>> # para cada ancla: su positivo MÁS LEJANO y su negativo MÁS CERCANO del lote (el triplete más difícil)
+<<< print(f"trained on digits 0-6 for 1500 batches in {time.time() - t0:.0f}s, final loss {loss.item():.3f}")
+>>> print(f"entrenado con los dígitos 0-6 durante 1500 lotes en {time.time() - t0:.0f} s, pérdida final {loss.item():.3f}")
+<<< # enrol ONE random example per identity, classify every other example by nearest enrolled embedding
+>>> # registra UN ejemplo aleatorio por identidad y clasifica cada uno de los demás por el embedding registrado más cercano
+<<< ("seen digits 0-6, new images", Xh, yh, Eh), ("UNSEEN digits 7-9", Xu, yu, Eu)
+>>> ("dígitos vistos 0-6, imágenes nuevas", Xh, yh, Eh), ("dígitos NO VISTOS 7-9", Xu, yu, Eu)
+<<< ("raw pixels", pix(X)), ("triplet embedding", E)
+>>> ("píxeles en bruto", pix(X)), ("embedding triplete", E)
+<<< label="same digit")
+>>> label="mismo dígito")
+<<< label="different digit")
+>>> label="dígito distinto")
+<<< print("one-shot recognition from ONE enrolment image per identity")
+>>> print("reconocimiento con UNA sola imagen de registro por identidad")
+<<< print(f"{'':22s} {'seen 0-6 (7-way)':>18s} {'unseen 7-9 (3-way)':>20s}")
+>>> print(f"{'':22s} {'vistos 0-6 (7 clases)':>22s} {'no vistos 7-9 (3 clases)':>25s}")
+<<< print(f"{'chance':22s} {1/7:18.1%} {1/3:20.1%}")
+>>> print(f"{'azar':22s} {1/7:22.1%} {1/3:25.1%}")
+<<< print(f"{'raw pixels':22s} {one_shot(pix(Xh), yh):18.1%} {one_shot(pix(Xu), yu):20.1%}")
+>>> print(f"{'píxeles en bruto':22s} {one_shot(pix(Xh), yh):22.1%} {one_shot(pix(Xu), yu):25.1%}")
+<<< print(f"{'triplet embedding':22s} {one_shot(Eh, yh):18.1%} {one_shot(Eu, yu):20.1%}")
+>>> print(f"{'embedding triplete':22s} {one_shot(Eh, yh):22.1%} {one_shot(Eu, yu):25.1%}")
