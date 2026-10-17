@@ -1,0 +1,66 @@
+# Builds the Python 1001 course website from the executed notebooks and publishes it.
+#
+# The static site is copied into the portfolio site repository under academy/python/; that
+# repository's GitHub Actions deploy publishes it to the web server (served at python.academy.forwardforecasting.eu; until its TLS certificate can be issued,
+# at www.forwardforecasting.eu/academy/python/).
+#
+# Required GitHub secret:
+#   GH_PAT: personal access token with write access to fborbon/forwardforecasting-landing
+
+name: Deploy Python 1001 site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'python/*.ipynb'
+      - 'python/es/*.ipynb'
+      - 'python/builders/**'
+      - 'python/site/**'
+      - '.github/workflows/deploy-python.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-python
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install site tooling
+        run: pip install --quiet "nbconvert>=7" "nbformat>=5" "pygments>=2.17"
+
+      - name: Check notebooks match their builders (every edition present)
+        run: python python/builders/rebuild.py all --check
+
+      - name: Build site (renders the saved notebook outputs; nothing is re-executed)
+        run: python python/site/build_site.py
+
+      - uses: actions/checkout@v4
+        with:
+          repository: fborbon/forwardforecasting-landing
+          token: ${{ secrets.GH_PAT }}
+          path: landing
+
+      - name: Copy site into the portfolio repository
+        run: |
+          mkdir -p landing/academy/python
+          rsync -a --delete python/site/dist/ landing/academy/python/
+
+      - name: Commit and push
+        run: |
+          cd landing
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add academy/python
+          git diff --cached --quiet && echo "No changes" && exit 0
+          git commit -m "sync: Python 1001 course site from academy repo"
+          for i in 1 2 3; do git pull --rebase && git push && exit 0; sleep 5; done
+          exit 1

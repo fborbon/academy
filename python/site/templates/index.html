@@ -1,0 +1,76 @@
+  <main class="landing">
+    <section class="hero">
+      <div class="hero-text">
+        <p class="eyebrow">Free course · ${n_modules} hands-on notebooks · runs on any laptop</p>
+        <h1>Python <span>1001</span></h1>
+        <p class="lead">From data structures to deploying services, compiled extensions and research-grade science. Three modules, Intro, Medium and Advanced, each a set of notebooks with real, executed results you can read here or run yourself.</p>
+        <div class="cta">
+          <a class="btn btn-primary" href="${first}/">Start with notebook 01 →</a>
+          <a class="btn btn-ghost" href="#syllabus">See the syllabus</a>
+        </div>
+        <ul class="hero-stats">
+          <li><b>${n_modules}</b><span>notebooks</span></li>
+          <li><b>~${hours} h</b><span>of study</span></li>
+          <li><b>3</b><span>levels</span></li>
+          <li><b>100%</b><span>runnable code</span></li>
+        </ul>
+        <p class="resume" hidden>Welcome back. <a href="#" class="resume-link"></a></p>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+<pre class="hero-code notranslate" translate="no"><code><span class="k">import</span> polars <span class="k">as</span> pl
+
+faults = (
+    pl.scan_parquet(<span class="s">"sensors.parquet"</span>)
+      .filter(pl.col(<span class="s">"status"</span>) == <span class="s">"fault"</span>)
+      .group_by(<span class="s">"site"</span>)
+      .agg(pl.col(<span class="s">"temp"</span>).mean())
+      .collect()
+)
+<span class="c"># 3 million rows in under half a second (notebook 03)</span></code></pre>
+      </div>
+    </section>
+
+    <section class="pillars">
+      <div><h3>Measured, not claimed</h3><p>Every comparison in the course is run: file formats timed, memory peaks measured per process, speed-ups benchmarked, models scored on held-out data. When a technique does not help, the notebook says so.</p></div>
+      <div><h3>From script to production</h3><p>Environments, lock files, Docker, testing, logging, packaging and publishing: the practices that turn code that runs on your machine into software other people can use.</p></div>
+      <div><h3>Python at the frontier</h3><p>The Advanced module uses the libraries researchers rely on, in biology, medicine, physics, space, economics and AI, and ends with a complete Kaggle challenge.</p></div>
+    </section>
+
+    <section class="syllabus" id="syllabus">
+      <div class="section-head">
+        <h2>Syllabus</h2>
+        <p>Three modules, ${n_modules} notebooks. Read the explanations, run the cells, then try the exercises at the end of each notebook. Your progress is remembered in this browser.</p>
+        <div class="progress-wrap"><div class="progress"><span class="progress-bar"></span></div><span class="progress-label"></span></div>
+      </div>
+$tracks
+    </section>
+
+    <section class="howto" id="run">
+      <div>
+        <h2>Run it yourself</h2>
+        <p>Each lesson page shows the notebook with its saved outputs, so the whole course can be read in the browser. To experiment, download a notebook or open it in Google Colab from the lesson page, or clone the repository and run everything locally (module 04 explains every step of this):</p>
+<pre class="shell notranslate" translate="no"><code>git clone ${repo}.git
+cd academy/${repo_path}
+python3 -m venv .venv &amp;&amp; source .venv/bin/activate
+pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+jupyter lab</code></pre>
+      </div>
+      <div class="prereq">
+        <h3>What you need</h3>
+        <ul>
+          <li><b>Python:</b> none for the Intro module beyond having written a few lines of code; each module builds on the previous one.</li>
+          <li><b>Maths:</b> school level. The Advanced notebooks explain the science they use as they go.</li>
+          <li><b>Hardware:</b> any laptop from the last decade. Every notebook runs on a CPU in minutes; the Kaggle capstone downloads a 1 MB dataset once.</li>
+        </ul>
+        <h3>Data and credits</h3>
+        <ul class="reading">
+          <li>Most data is generated in the notebooks or ships with the libraries (scikit-learn, statsmodels, lifelines).</li>
+          <li>Ames Housing data: De Cock, D. (2011), <i>Journal of Statistics Education</i> 19(3), via OpenML (public).</li>
+          <li>GBSG2 breast-cancer trial: Schumacher et al. (1994), <i>Journal of Clinical Oncology</i>, as distributed with lifelines.</li>
+          <li>US macroeconomic data: as distributed with statsmodels (<code>macrodata</code>).</li>
+          <li>Planetary orbital elements: standard published values (NASA planetary fact sheets).</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+  <script>window.NN1001_MODULES = ${modules_json};</script>

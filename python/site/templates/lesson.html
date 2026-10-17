@@ -1,0 +1,36 @@
+  <div class="lesson-layout">
+    <aside class="sidebar" aria-label="Course modules">
+      <button class="side-toggle" type="button" aria-expanded="false">$t_modules</button>
+      <div class="side-inner">
+        <a class="side-home" href="../">$t_overview</a>
+        <div class="progress small"><span class="progress-bar"></span></div>
+        <ol class="side-list">$side</ol>
+      </div>
+    </aside>
+    <main class="lesson">
+      <header class="lesson-head">
+        <p class="eyebrow">$track · $module_of</p>
+        <h1>$title</h1>
+        <p class="lead">$blurb</p>
+        <ul class="chips">$chips</ul>
+        <div class="lesson-actions">
+          <span class="meta">⏱ $meta_minutes</span>
+          <span class="meta">💻 $meta_runs</span>
+          <a class="btn btn-small" href="../notebooks/$file" download>$t_download</a>
+          <a class="btn btn-small" href="$colab" target="_blank" rel="noopener">$t_colab</a>
+          <a class="btn btn-small btn-quiet" href="$github" target="_blank" rel="noopener">$t_github</a>
+        </div>
+      </header>
+      <article class="notebook">
+$content
+      </article>
+      <div class="complete-box">
+        <button class="btn btn-primary complete-btn" type="button" data-module="$n">$t_mark</button>
+      </div>
+      $pager
+    </main>
+    <nav class="toc" aria-label="On this page">
+      <p>$t_on_page</p>
+      <ol>$toc</ol>
+    </nav>
+  </div>
