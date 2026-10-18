@@ -14,6 +14,7 @@ to measure memory honestly and the techniques, and the alternative libraries, th
 4. Columnar files: read only the columns and rows you need
 5. Alternatives to pandas: **Polars**, **DuckDB**, **PyArrow** (and when Dask or Spark make sense)
 6. A benchmark: the same query six ways, timed and with peak memory measured
+7. **PySpark** for data beyond one machine: the same queries with the DataFrame API and with SQL
 """)
 
 md(r"""
@@ -237,7 +238,186 @@ md(r"""
 
 In practice: store data as Parquet, select columns and types up front, and let a query engine (DuckDB or
 Polars) do the filtering and aggregation; stream when even the selected data does not fit.
+""")
 
+md(r"""
+## 7. Beyond one machine: PySpark
+When data no longer fits on one machine (hundreds of GB, many TB), or arrives continuously from many
+sources, the standard tool is **Apache Spark**, used from Python through **PySpark**. Spark splits a
+dataset into **partitions** and processes them in parallel on many **executors** (worker processes, often on
+many servers), coordinated by a **driver** (your Python program). Like Polars' lazy mode, nothing runs until
+you ask for a result: Spark first builds a plan, and its optimiser (*Catalyst*) rewrites it, pushing filters
+and column selection down into the file scan.
+
+| Concept | Meaning |
+|---|---|
+| `SparkSession` | the entry point; connects to a cluster, or runs everything inside one machine with `local[*]` |
+| DataFrame | a distributed table with a schema, split into partitions |
+| transformation | `filter`, `select`, `groupBy`, `join`: lazy, only adds to the plan |
+| action | `show`, `count`, `collect`, `write`: runs the plan |
+| cluster manager | where executors come from: Kubernetes, YARN, Databricks, AWS EMR, Google Dataproc |
+
+The same code runs on a laptop in local mode and on a 100-node cluster; only the session configuration
+changes. Spark runs on the Java virtual machine, so it needs a Java runtime (17 or newer).
+""")
+code(r"""
+from pyspark.sql import SparkSession, functions as F, Window
+
+spark = (SparkSession.builder
+         .master("local[4]")                                   # 4 worker threads on this machine
+         .appName("python1001-large-data")
+         .config("spark.driver.memory", "2g")
+         .config("spark.sql.shuffle.partitions", "8")         # small data: few partitions after a shuffle
+         .config("spark.ui.enabled", "false")
+         .getOrCreate())
+spark.sparkContext.setLogLevel("ERROR")
+print("Spark", spark.version)
+
+readings = spark.read.parquet(PARQUET)                          # lazy: only the schema is read
+readings.printSchema()
+print("partitions:", readings.rdd.getNumPartitions(), "| rows:", f"{readings.count():,}")
+""")
+
+md(r"""
+### Two ways to write the same query
+Spark offers two equivalent interfaces, and teams mix them freely:
+
+1. **The DataFrame API**: method calls on the DataFrame, with column expressions from `pyspark.sql.functions`
+   (`F.col`, `F.avg`, `F.when`, ...). Composable, checked by your editor, easy to build programmatically.
+2. **SQL**: register the DataFrame as a view and run a query string with `spark.sql("...")`. Familiar to
+   anyone who knows SQL, and convenient for long analytical queries.
+
+**Query 1:** mean temperature and count of `fault` readings per site.
+""")
+code(r"""
+# 1) DataFrame API
+api_result = (readings
+              .filter(F.col("status") == "fault")
+              .groupBy("site")
+              .agg(F.round(F.avg("temperature"), 3).alias("mean_temp"), F.count("*").alias("n_faults"))
+              .orderBy("site"))
+api_result.show(5)
+""")
+code(r"""
+# 2) SQL: the DataFrame becomes a temporary view that queries can refer to by name
+readings.createOrReplaceTempView("readings")
+sql_result = spark.sql('''
+    SELECT site,
+           ROUND(AVG(temperature), 3) AS mean_temp,
+           COUNT(*)                   AS n_faults
+    FROM readings
+    WHERE status = 'fault'
+    GROUP BY site
+    ORDER BY site
+''')
+sql_result.show(5)
+print("identical results:", api_result.collect() == sql_result.collect())
+""")
+
+md(r"""
+Both are compiled by the same optimiser into the same kind of physical plan, so neither is faster. The plan
+shows the optimisation at work: the filter on `status` and the three needed columns are pushed into the
+Parquet scan (`PushedFilters`, `ReadSchema`), so the other columns are never read.
+""")
+code(r"""
+api_result.explain()          # the DataFrame API version
+sql_result.explain()          # the SQL version: the same operators
+""")
+
+md(r"""
+**Query 2:** something richer. Per site, the share of readings in each status and the three sensors with the
+highest average temperature, using a derived column, a pivot, a join and a **window function**.
+""")
+code(r"""
+# DataFrame API
+flagged = readings.withColumn("is_hot", F.when(F.col("temperature") > 28, 1).otherwise(0))
+status_share = (flagged.groupBy("site").pivot("status", ["ok", "warning", "fault"]).count()
+                .withColumn("total", F.col("ok") + F.col("warning") + F.col("fault"))
+                .select("site", *[F.round(F.col(s) / F.col("total") * 100, 2).alias(f"pct_{s}") for s in ["ok", "warning", "fault"]]))
+by_sensor = flagged.groupBy("site", "sensor_id").agg(F.avg("temperature").alias("avg_t"), F.sum("is_hot").alias("hot_readings"))
+rank_w = Window.partitionBy("site").orderBy(F.col("avg_t").desc())
+top3_api = (by_sensor.withColumn("rank", F.row_number().over(rank_w)).filter(F.col("rank") <= 3)
+            .join(F.broadcast(status_share), "site")                     # small table: send it to every executor
+            .orderBy("site", "rank"))
+top3_api.show(6)
+""")
+code(r"""
+# SQL: the same logic, with CTEs, CASE WHEN, conditional aggregation and ROW_NUMBER() OVER (...)
+top3_sql = spark.sql('''
+    WITH flagged AS (
+        SELECT *, CASE WHEN temperature > 28 THEN 1 ELSE 0 END AS is_hot FROM readings
+    ),
+    status_share AS (
+        SELECT site,
+               ROUND(100 * AVG(CASE WHEN status = 'ok'      THEN 1 ELSE 0 END), 2) AS pct_ok,
+               ROUND(100 * AVG(CASE WHEN status = 'warning' THEN 1 ELSE 0 END), 2) AS pct_warning,
+               ROUND(100 * AVG(CASE WHEN status = 'fault'   THEN 1 ELSE 0 END), 2) AS pct_fault
+        FROM flagged GROUP BY site
+    ),
+    ranked AS (
+        SELECT site, sensor_id, AVG(temperature) AS avg_t, SUM(is_hot) AS hot_readings,
+               ROW_NUMBER() OVER (PARTITION BY site ORDER BY AVG(temperature) DESC) AS rank
+        FROM flagged GROUP BY site, sensor_id
+    )
+    SELECT r.*, s.pct_ok, s.pct_warning, s.pct_fault
+    FROM ranked r JOIN status_share s USING (site)
+    WHERE rank <= 3
+    ORDER BY site, rank
+''')
+top3_sql.show(6)
+cols = ["site", "sensor_id", "rank", "pct_fault"]
+print("same rows:", top3_api.select(cols).collect() == top3_sql.select(cols).collect())
+""")
+
+md(r"""
+### Getting results out, and writing data
+`toPandas()` brings a result to the driver as a pandas DataFrame: do it only with **small** results, never
+with the raw data. Large outputs are written back to storage, usually Parquet partitioned by a column so
+later queries can skip whole folders.
+""")
+code(r"""
+small = top3_sql.toPandas()                       # fine: a few hundred rows
+print(type(small).__name__, small.shape)
+
+out = os.path.join(tmp, "spark_out")
+(readings.filter(F.col("status") != "ok")
+         .write.mode("overwrite").partitionBy("status").parquet(out))
+print(sorted(d for d in os.listdir(out) if not d.startswith(("_", "."))))
+# SQL can also query files directly, without registering a view first
+spark.sql(f"SELECT status, COUNT(*) AS n FROM parquet.`{out}` GROUP BY status ORDER BY status").show()
+""")
+
+md(r"""
+### Is Spark faster here?
+""")
+code(r"""
+import time
+t0 = time.perf_counter(); api_result.collect(); t_spark = time.perf_counter() - t0
+t0 = time.perf_counter()
+duckdb.sql(f"select site, avg(temperature), count(*) from '{PARQUET}' where status = 'fault' group by site").df()
+t_duck = time.perf_counter() - t0
+print(f"query 1 with both engines already running: Spark {t_spark:.2f} s, DuckDB {t_duck:.2f} s")
+spark.stop()
+""")
+
+md(r"""
+On one machine and a few million rows, no: Spark plans the query, schedules tasks and moves data between
+them in a separate Java process, overheads that single-node engines like DuckDB and Polars avoid. Spark pays
+off when the data or the work is too large for one machine, when the data already lives in a data lake or
+warehouse that Spark reads natively, or for streaming pipelines. A sensible path: pandas, then Polars or
+DuckDB, then Spark.
+
+| Tool | Function-style API | SQL style |
+|---|---|---|
+| **PySpark** | `df.filter(F.col("x") > 1).groupBy("k").agg(F.avg("v"))` | `df.createOrReplaceTempView("t")`, then `spark.sql("SELECT k, AVG(v) FROM t WHERE x > 1 GROUP BY k")` |
+| **Polars** | `df.filter(pl.col("x") > 1).group_by("k").agg(pl.col("v").mean())` | `df.sql("SELECT k, AVG(v) FROM self WHERE x > 1 GROUP BY k")` |
+| **DuckDB** | relational API: `duckdb.table("t").filter("x > 1").aggregate("k, avg(v)")` | `duckdb.sql("SELECT ...")`, which can also query pandas DataFrames by name |
+| **pandas** | `df[df.x > 1].groupby("k")["v"].mean()` | `df.query("x > 1")` takes a filter expression, not full SQL |
+
+Spark also offers a pandas-like API (`import pyspark.pandas as ps`) for teams moving pandas code to a cluster.
+""")
+
+md(r"""
 ## Checklist for memory-constrained processing
 1. **Measure first**: `memory_usage(deep=True)`, `psutil`, or the peak of a test run.
 2. **Store as Parquet**, not CSV, and read only the needed columns and rows.
@@ -245,12 +425,13 @@ Polars) do the filtering and aggregation; stream when even the selected data doe
 4. **Stream** when the result is small: chunks, generators, or a lazy engine.
 5. **Delete what you no longer need** (`del df`) and avoid accidental copies.
 6. **Let a query engine do the work** (DuckDB, Polars) when pandas would load everything.
-7. Only then think about more RAM or a cluster.
+7. Only then think about more RAM or a cluster (Spark, section 7).
 
 ## Exercises
 1. Repeat the benchmark with `sensor_id` as the group key. Does the ranking change?
 2. Add an approach using `pyarrow.dataset` with a filter expression and compare it.
 3. Use `pl.scan_csv` instead of `scan_parquet`: how much of Polars' advantage comes from the file format?
+4. In PySpark, find the hottest single reading per site twice: with `Window` and `F.max`, and in SQL with `MAX(...) OVER (PARTITION BY site)`. Check both give the same rows.
 """)
 
 save("03_large_data_memory.ipynb")

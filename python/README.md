@@ -1,8 +1,8 @@
 # Python 1001
 
-A free, hands-on Python course in three modules: **Intro**, **Medium** and **Advanced**. Twelve Jupyter
+A free, hands-on Python course in three modules: **Intro**, **Medium** and **Advanced**. Thirteen Jupyter
 notebooks with their results saved, so the whole course can be read on the website, and every notebook runs
-on an ordinary laptop CPU in about a minute.
+on an ordinary laptop CPU in a few minutes.
 
 **Website:** [www.forwardforecasting.eu/academy/python/](https://www.forwardforecasting.eu/academy/python/)
 (its final address, python.academy.forwardforecasting.eu, goes live once its TLS certificate is issued).
@@ -21,7 +21,7 @@ on an ordinary laptop CPU in about a minute.
 |---|---|---|---|
 | 01 | Python Data Structures | Intro | lists, tuples, dicts, sets, `collections`, functions, a first look at classes, comprehensions, generators, exceptions, lookup speed measured |
 | 02 | Data Formats and pandas | Intro | the DataFrame; CSV, JSON, Excel, Parquet, Feather, SQLite, YAML, TOML and pickle compared on the same data (size, speed, types kept); pitfalls |
-| 03 | Large Data on Limited RAM | Intro | measuring memory, compact dtypes and categoricals, chunking and generators, Parquet pruning, Polars, DuckDB and PyArrow benchmarked per process |
+| 03 | Large Data on Limited RAM | Intro | measuring memory, compact dtypes and categoricals, chunking and generators, Parquet pruning, Polars, DuckDB and PyArrow benchmarked per process; **PySpark**: the same queries written with the DataFrame API (`F.col`, `groupBy`, window functions) and with SQL (`spark.sql(...)`), query plans, partitioned writes |
 | 04 | Environments, Packages, Containers and Editors | Intro | `venv` (demonstrated), pip, uv, pipx, conda, apt, snap, brew; lock files; Docker for deployment; VS Code, PyCharm, Eclipse + PyDev, Vim, JupyterLab, Spyder; a project layout |
 | 05 | Object-Oriented Python | Medium | the four pillars, special methods, properties, class and static methods, dataclasses, ABCs vs. Protocols, composition, MRO, `__slots__` |
 | 06 | Pythonic Techniques | Medium | iterators, `itertools`, decorators, context managers, functional tools, type hints, logging, pytest, threads vs. processes vs. asyncio (measured) |
@@ -30,7 +30,8 @@ on an ordinary laptop CPU in about a minute.
 | 09 | Physics and Space Research | Advanced | SymPy derivation of the pendulum, SciPy simulation, FFT, Astropy units and constants, Kepler's third law on the planets, an orbit validated by conservation laws, sky coordinates |
 | 10 | Economics and Econometrics | Advanced | statsmodels on US macro data: Okun's law with HAC errors and its stability by decade; ARIMA forecasts in a rolling backtest against naive baselines |
 | 11 | AI Frameworks: PyTorch and TensorFlow | Advanced | the same CNN in both frameworks: autograd vs. GradientTape, explicit loop vs. `fit`, saving and reloading, how to choose |
-| 12 | Capstone: Solving a Kaggle Challenge | Advanced | House Prices end to end: data licensing, log-RMSE metric, exploration, feature engineering in a Pipeline, cross-validation, blending (held-out RMSE(log) 0.110), submission file |
+| 12 | Time Series Forecasting | Advanced | seasonal naive, SARIMA, Prophet, XGBoost, GRU (PyTorch), LSTM (Keras) and a Transformer on two problems: hourly bike demand (tabular data with strong features, where gradient boosting wins) and river flow driven by rain (hidden long-memory state, where recurrent networks win), and why |
+| 13 | Capstone: Solving a Kaggle Challenge | Advanced | House Prices end to end: data licensing, log-RMSE metric, exploration, feature engineering in a Pipeline, cross-validation, blending (held-out RMSE(log) 0.110), submission file |
 
 The material of the original interview-refresher notebook (core types, functions, classes and the four OOP
 pillars, comprehensions, exceptions, pandas basics) is folded into notebooks 01, 02 and 05.
@@ -47,7 +48,7 @@ jupyter lab
 
 Or open any notebook in Google Colab from its lesson page. Notebook 07 compiles C and Cython code and
 needs a C compiler (`gcc` on Linux, Xcode command line tools on macOS, Build Tools on Windows; Colab has
-one). Notebook 12 downloads the Ames Housing dataset (about 1 MB) from OpenML on first run.
+one). Notebook 03 runs PySpark, which needs a Java runtime 17 or newer (`apt install openjdk-17-jre-headless`; Colab has one). Notebooks 12 and 13 download small datasets (about 1 MB each) from OpenML on first run.
 
 ## Libraries used
 
@@ -60,17 +61,20 @@ one). Notebook 12 downloads the Ames Housing dataset (about 1 MB) from OpenML on
 | Numba, Cython, build, twine, packaging | speeding up code, packaging and publishing | 07 |
 | Biopython | sequences, alignment, phylogenetics | 08 |
 | lifelines | survival analysis | 08 |
-| scikit-learn | classifiers, pipelines, cross-validation | 08, 11, 12 |
+| scikit-learn | classifiers, pipelines, cross-validation | 08, 11, 13 |
 | SymPy, SciPy | symbolic maths, ODEs, signal processing | 09 |
 | Astropy | units, constants, sky coordinates | 09 |
-| statsmodels | regression, time series | 10 |
-| PyTorch, TensorFlow/Keras | deep learning frameworks | 11 |
+| statsmodels | regression, time series | 10, 12 |
+| PySpark | distributed DataFrames and SQL | 03 |
+| XGBoost, Prophet | gradient-boosted trees, decomposable forecasting | 12 |
+| PyTorch, TensorFlow/Keras | deep learning frameworks | 11, 12 |
 | matplotlib | every figure | all |
 
 ## Data and licences
 
 Most data is generated inside the notebooks or ships with the libraries (scikit-learn, statsmodels,
-lifelines). The Kaggle capstone deliberately does **not** use Kaggle's competition files, whose rules
+lifelines). Notebook 12 uses the UCI Bike Sharing dataset (Fanaee-T and Gama, 2013, licence CC BY 4.0) from
+OpenML (dataset 42712). The Kaggle capstone deliberately does **not** use Kaggle's competition files, whose rules
 restrict use and redistribution: it uses the original **Ames Housing** dataset compiled for teaching by
 Dean De Cock (*Journal of Statistics Education*, 2011), from OpenML (dataset 43926, licence: public), and
 explains how to download the competition files with your own account to submit. Credits are listed on the
@@ -93,7 +97,7 @@ The same pipeline as the other academy course:
 
 A static site: **$0** extra. It is served by the existing web server from files (no process, no memory),
 the build runs on free GitHub Actions minutes, and nothing in the course calls a paid API. Executing all
-twelve notebooks locally takes about 6 minutes on a laptop CPU.
+thirteen notebooks locally takes about 15 minutes on a laptop CPU.
 
 ## Contact
 

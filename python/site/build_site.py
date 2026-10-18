@@ -41,17 +41,18 @@ BASE = [
     dict(n="09", track=2, minutes=75, cpu="20 s"),
     dict(n="10", track=2, minutes=60, cpu="40 s"),
     dict(n="11", track=2, minutes=60, cpu="30 s"),
-    dict(n="12", track=2, minutes=120, cpu="1 min"),
+    dict(n="12", track=2, minutes=120, cpu="25 min"),
+    dict(n="13", track=2, minutes=120, cpu="1 min"),
 ]
 
 LANGS = {
     "en": dict(
         dir="", nb_dir="", course="Python 1001", course_html="Python <b>1001</b>",
-        description="A free, hands-on Python course in three levels: data structures and tooling, professional programming and libraries, and frontier science and AI, ending with a Kaggle challenge.",
+        description="A free, hands-on Python course in three levels: data structures and tooling, professional programming and libraries, and frontier science, AI and forecasting, ending with a Kaggle challenge.",
         switch_label="", switch_title="",
         tracks=[("Intro", "Data structures, formats, data larger than memory, environments, containers and editors."),
                 ("Medium", "Object-oriented and Pythonic programming, testing, concurrency, and building, publishing and maintaining libraries."),
-                ("Advanced", "Python at the frontier: biology, medicine, physics, space, economics, AI frameworks and a Kaggle capstone.")],
+                ("Advanced", "Python at the frontier: biology, medicine, physics, space, economics, AI frameworks, time series forecasting and a Kaggle capstone.")],
         modules=[
             ("01_data_structures.ipynb", "01-data-structures", "Python Data Structures",
              "Lists, tuples, dictionaries and sets, the collections module, functions, a first look at classes, comprehensions, generators and exceptions, and why the choice of structure matters, measured.",
@@ -86,7 +87,10 @@ LANGS = {
             ("11_ai_frameworks.ipynb", "11-ai-frameworks", "AI Frameworks: PyTorch and TensorFlow",
              "The same convolutional network in PyTorch and in TensorFlow/Keras: tensors, automatic differentiation, training loops, saving and exporting, and how to choose.",
              ["PyTorch", "TensorFlow", "Keras", "autograd", "CNN", "ONNX"]),
-            ("12_kaggle_house_prices.ipynb", "12-kaggle-house-prices", "Capstone: Solving a Kaggle Challenge",
+            ("12_time_series_forecasting.ipynb", "12-time-series-forecasting", "Time Series Forecasting",
+             "Seasonal naive, SARIMA, Prophet, XGBoost, a GRU in PyTorch, an LSTM in Keras and a Transformer on two problems: bike demand, where gradient boosting wins, and river flow, where neural networks win, and why.",
+             ["seasonal naive", "SARIMA", "Prophet", "XGBoost", "GRU & LSTM", "Transformer"]),
+            ("13_kaggle_house_prices.ipynb", "13-kaggle-house-prices", "Capstone: Solving a Kaggle Challenge",
              "Kaggle's House Prices challenge end to end: licensing, the log-RMSE metric, exploration, feature engineering in a Pipeline, cross-validation, blending and a submission file.",
              ["Kaggle", "data licensing", "feature engineering", "Pipeline", "cross-validation", "blending"]),
         ],
