@@ -1,8 +1,7 @@
 # Builds the Python 1001 course website from the executed notebooks and publishes it.
 #
 # The static site is copied into the portfolio site repository under academy/python/; that
-# repository's GitHub Actions deploy publishes it to the web server (served at python.academy.forwardforecasting.eu; until its TLS certificate can be issued,
-# at www.forwardforecasting.eu/academy/python/).
+# repository's GitHub Actions deploy publishes it to the web server (served at python.academy.forwardforecasting.eu).
 #
 # Required GitHub secret:
 #   GH_PAT: personal access token with write access to fborbon/forwardforecasting-landing

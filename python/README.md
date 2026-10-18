@@ -4,8 +4,7 @@ A free, hands-on Python course in three modules: **Intro**, **Medium** and **Adv
 notebooks with their results saved, so the whole course can be read on the website, and every notebook runs
 on an ordinary laptop CPU in a few minutes.
 
-**Website:** [www.forwardforecasting.eu/academy/python/](https://www.forwardforecasting.eu/academy/python/)
-(its final address, python.academy.forwardforecasting.eu, goes live once its TLS certificate is issued).
+**Website:** [python.academy.forwardforecasting.eu](https://python.academy.forwardforecasting.eu/)
 
 ## Table of contents
 1. [Syllabus](#syllabus)

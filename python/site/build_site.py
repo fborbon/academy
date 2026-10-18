@@ -23,9 +23,7 @@ ROOT = os.path.dirname(HERE)
 DIST = os.path.join(HERE, "dist")
 REPO = "https://github.com/fborbon/academy"
 REPO_PATH = "python"
-# Final home: https://python.academy.forwardforecasting.eu (switch the default once its TLS certificate exists;
-# issuance is blocked while the domain's stale secondary nameservers answer NXDOMAIN for new names)
-SITE_URL = os.environ.get("SITE_URL", "https://www.forwardforecasting.eu/academy/python")
+SITE_URL = "https://python.academy.forwardforecasting.eu"
 FIELD_NOTES = "https://education.forwardforecasting.eu/"
 
 # per-module data that does not depend on the language
