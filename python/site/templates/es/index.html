@@ -1,0 +1,77 @@
+  <main class="landing">
+    <section class="hero">
+      <div class="hero-text">
+        <p class="eyebrow">Curso gratuito · ${n_modules} notebooks prácticos · funciona en cualquier portátil</p>
+        <h1>Python <span>1001</span></h1>
+        <p class="lead">De las estructuras de datos al despliegue de servicios, las extensiones compiladas y la ciencia de nivel investigador. Tres módulos, Inicial, Intermedio y Avanzado, cada uno con notebooks y resultados reales ya ejecutados que puedes leer aquí o ejecutar tú.</p>
+        <div class="cta">
+          <a class="btn btn-primary" href="${first}/">Empieza con el notebook 01 →</a>
+          <a class="btn btn-ghost" href="#syllabus">Ver el temario</a>
+        </div>
+        <ul class="hero-stats">
+          <li><b>${n_modules}</b><span>notebooks</span></li>
+          <li><b>~${hours} h</b><span>de estudio</span></li>
+          <li><b>3</b><span>niveles</span></li>
+          <li><b>100%</b><span>código ejecutable</span></li>
+        </ul>
+        <p class="resume" hidden>Bienvenido de nuevo. <a href="#" class="resume-link"></a></p>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+<pre class="hero-code notranslate" translate="no"><code><span class="k">import</span> polars <span class="k">as</span> pl
+
+faults = (
+    pl.scan_parquet(<span class="s">"sensors.parquet"</span>)
+      .filter(pl.col(<span class="s">"status"</span>) == <span class="s">"fault"</span>)
+      .group_by(<span class="s">"site"</span>)
+      .agg(pl.col(<span class="s">"temp"</span>).mean())
+      .collect()
+)
+<span class="c"># 3 millones de filas en menos de medio segundo (notebook 03)</span></code></pre>
+      </div>
+    </section>
+
+    <section class="pillars">
+      <div><h3>Medido, no prometido</h3><p>Cada comparación del curso se ejecuta: formatos de archivo cronometrados, picos de memoria medidos por proceso, aceleraciones medidas, modelos evaluados con datos reservados. Cuando una técnica no ayuda, el notebook lo dice.</p></div>
+      <div><h3>Del script a producción</h3><p>Entornos, archivos de bloqueo, Docker, pruebas, registro, empaquetado y publicación: las prácticas que convierten el código que funciona en tu máquina en software que otras personas pueden usar.</p></div>
+      <div><h3>Python en la frontera</h3><p>El módulo Avanzado usa las bibliotecas en las que confían los investigadores, en biología, medicina, física, espacio, economía, IA y previsión, y termina con un reto de Kaggle completo.</p></div>
+    </section>
+
+    <section class="syllabus" id="syllabus">
+      <div class="section-head">
+        <h2>Temario</h2>
+        <p>Tres módulos, ${n_modules} notebooks. Lee las explicaciones, ejecuta las celdas y prueba los ejercicios al final de cada notebook. Tu progreso se guarda en este navegador.</p>
+        <div class="progress-wrap"><div class="progress"><span class="progress-bar"></span></div><span class="progress-label"></span></div>
+      </div>
+$tracks
+    </section>
+
+    <section class="howto" id="run">
+      <div>
+        <h2>Ejecútalo tú</h2>
+        <p>Cada página de lección muestra el notebook con sus resultados guardados, así que todo el curso se puede leer en el navegador. Para experimentar, descarga un notebook o ábrelo en Google Colab desde la página de la lección, o clona el repositorio y ejecútalo todo en local (el notebook 04 explica cada paso):</p>
+<pre class="shell notranslate" translate="no"><code>git clone ${repo}.git
+cd academy/${repo_path}
+python3 -m venv .venv &amp;&amp; source .venv/bin/activate
+pip install -r ../requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+jupyter lab</code></pre>
+      </div>
+      <div class="prereq">
+        <h3>Qué necesitas</h3>
+        <ul>
+          <li><b>Python:</b> para el módulo Inicial basta con haber escrito alguna línea de código; cada módulo se apoya en el anterior.</li>
+          <li><b>Matemáticas:</b> nivel de secundaria. Los notebooks avanzados explican la ciencia que usan sobre la marcha.</li>
+          <li><b>Equipo:</b> cualquier portátil de la última década. Todos los notebooks se ejecutan en una CPU en minutos; dos notebooks descargan una vez un conjunto de datos pequeño. La sección de PySpark del notebook 03 necesita Java 17 o posterior.</li>
+        </ul>
+        <h3>Datos y créditos</h3>
+        <ul class="reading">
+          <li>La mayoría de los datos se generan en los notebooks o vienen con las bibliotecas (scikit-learn, statsmodels, lifelines).</li>
+          <li>Datos de Ames Housing: De Cock, D. (2011), <i>Journal of Statistics Education</i> 19(3), vía OpenML (pública).</li>
+          <li>Ensayo de cáncer de mama GBSG2: Schumacher et al. (1994), <i>Journal of Clinical Oncology</i>, tal como lo distribuye lifelines.</li>
+          <li>Datos macroeconómicos de EE. UU.: tal como los distribuye statsmodels (<code>macrodata</code>).</li>
+          <li>Datos de Bike Sharing: Fanaee-T, H. y Gama, J. (2013), <i>Progress in Artificial Intelligence</i>, repositorio UCI (CC BY 4.0), vía OpenML.</li>
+          <li>Elementos orbitales de los planetas: valores publicados estándar (fichas planetarias de la NASA).</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+  <script>window.NN1001_MODULES = ${modules_json};</script>

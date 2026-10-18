@@ -1,0 +1,147 @@
+@@ file 05_python_orientado_a_objetos.ipynb
+
+@@ md 8e67c8baa2
+# 05 · Python orientado a objetos
+
+Las clases permiten agrupar los datos con el comportamiento que les corresponde. El modelo de objetos de Python
+es flexible: casi todo, incluidos los números y las funciones, es un objeto, y tus propias clases pueden
+comportarse como los tipos integrados. Este módulo va desde los cuatro pilares clásicos hasta las
+características que el código profesional usa a diario.
+
+**Aprenderás**
+1. Los cuatro pilares: encapsulación, herencia, polimorfismo y abstracción
+2. El modelo de datos: métodos especiales ("dunder") que hacen que los objetos se puedan imprimir, comparar, recorrer y llamar
+3. Propiedades, métodos de clase y métodos estáticos
+4. `dataclasses`: clases para datos casi sin código repetitivo
+5. Clases base abstractas frente a `Protocol` (tipado estructural)
+6. Composición frente a herencia, `super()` y el orden de resolución de métodos
+7. `__slots__`: cuando importa la memoria por objeto
+
+@@ md c0dd46325c
+## 1. Los cuatro pilares
+La **encapsulación** mantiene juntos los datos y las reglas que los protegen. Python no tiene atributos
+realmente privados; un guion bajo inicial es la convención para "interno, no tocar".
+
+@@ md c7a1e70b08
+La **herencia** reutiliza y amplía una clase base; el **polimorfismo** significa que el código puede llamar al
+mismo método sobre tipos distintos y obtener el comportamiento correcto para cada uno.
+
+@@ md da14422d8f
+La **abstracción** define una interfaz y oculta la implementación. Una clase base abstracta no se puede
+instanciar y obliga a las subclases a implementar sus métodos abstractos.
+
+@@ md 460a630694
+## 2. El modelo de datos: métodos especiales
+Python llama a métodos con nombres especiales para las operaciones integradas: `len(x)` llama a
+`x.__len__()`, `a + b` llama a `a.__add__(b)` y `for item in x` llama a `x.__iter__()`. Implementarlos hace
+que tus clases se sientan nativas.
+
+@@ md 545c7526d4
+## 3. Propiedades, métodos de clase y métodos estáticos
+
+@@ md 36a1c4ae7b
+## 4. Dataclasses
+La mayoría de las clases sobre todo guardan datos. `@dataclass` escribe por ti `__init__`, `__repr__` y
+`__eq__` y, si quieres, orden, inmutabilidad (`frozen=True`) y slots para ahorrar memoria.
+
+@@ md 6ecdb63191
+## 5. Clases base abstractas frente a Protocols
+Una ABC exige que las clases **hereden** de ella (tipado nominal). Un `Protocol` solo exige que **tengan los
+métodos adecuados** (tipado estructural, el "duck typing" que entienden los comprobadores de tipos). Los
+protocolos permiten describir lo que necesitas de objetos que no controlas.
+
+@@ md 25e4c04a64
+## 6. Composición frente a herencia, y `super()`
+La herencia modela "es un"; la composición modela "tiene un". Las jerarquías de herencia profundas se vuelven
+difíciles de cambiar, así que es preferible darle a un objeto las piezas que necesita.
+
+@@ md eb5fc97b0a
+## 7. `__slots__`: memoria por objeto
+Cada objeto normal lleva un `__dict__` para sus atributos. Con `__slots__` los atributos se guardan en huecos
+fijos, lo que ahorra memoria cuando creas millones de objetos pequeños.
+
+@@ md 3c0f5a044c
+## Resumen
+| Herramienta | Úsala cuando |
+|---|---|
+| clase normal | comportamiento más estado con reglas (una cuenta, una conexión) |
+| `@dataclass` | sobre todo datos (registros, configuración, resultados) |
+| `@property` | validación o atributos calculados con sintaxis de atributo |
+| `@classmethod` | constructores alternativos (`from_json`, `from_fahrenheit`) |
+| ABC | una familia de clases propias que debe implementar una interfaz |
+| `Protocol` | describir lo que necesitas de cualquier objeto, incluidos los de terceros |
+| composición | combinar capacidades sin herencia profunda |
+| `__slots__` | millones de objetos pequeños |
+
+## Ejercicios
+1. Haz que `Vector` admita la resta y el producto escalar (`v @ w` llama a `__matmul__`).
+2. Escribe una dataclass inmutable `Money(amount, currency)` cuyo `+` lance un error si las monedas son distintas.
+3. Sustituye la jerarquía de `Animal` por un `Protocol` y comprueba que una clase que no hereda de nada sigue funcionando.
+
+@@ code
+<<< self._balance = balance                     # internal by convention
+>>> self._balance = balance                     # interno por convención
+<<< raise ValueError("deposit must be positive")
+>>> raise ValueError("el depósito debe ser positivo")
+<<< raise ValueError("insufficient funds")
+>>> raise ValueError("fondos insuficientes")
+<<< def balance(self) -> float:                      # read-only from outside
+>>> def balance(self) -> float:                      # solo lectura desde fuera
+<<< print("cannot set it directly:", e)
+>>> print("no se puede asignar directamente:", e)
+<<< print(pet.speak())                    # one call, the right behaviour per type
+>>> print(pet.speak())                    # una llamada, el comportamiento correcto para cada tipo
+<<< def describe(self) -> str:            # concrete method built on the abstract one
+>>> def describe(self) -> str:            # método concreto construido sobre el abstracto
+<<< return f"{type(self).__name__} with area {self.area():.2f}"
+>>> return f"{type(self).__name__} con área {self.area():.2f}"
+<<< print("abstract:", e)
+>>> print("abstracta:", e)
+<<< @total_ordering                          # derives <=, >, >= from __eq__ and __lt__
+>>> @total_ordering                          # deduce <=, >, >= a partir de __eq__ y __lt__
+<<< def __repr__(self):  return f"Vector({self.x}, {self.y})"         # for developers
+>>> def __repr__(self):  return f"Vector({self.x}, {self.y})"         # para desarrolladores
+<<< def __str__(self):   return f"({self.x}, {self.y})"                # for users
+>>> def __str__(self):   return f"({self.x}, {self.y})"                # para usuarios
+<<< __rmul__ = __mul__                                                  # so 3 * v works too
+>>> __rmul__ = __mul__                                                  # para que 3 * v también funcione
+<<< def __iter__(self):  yield from (self.x, self.y)                   # enables unpacking
+>>> def __iter__(self):  yield from (self.x, self.y)                   # permite el desempaquetado
+<<< print({v, Vector(3, 4)})                 # equal objects collapse in a set thanks to __hash__
+>>> print({v, Vector(3, 4)})                 # los objetos iguales se funden en un conjunto gracias a __hash__
+<<< '''A container: supports len(), indexing, slicing, 'in' and iteration.'''
+>>> '''Un contenedor: admite len(), índices, rebanadas, 'in' e iteración.'''
+<<< '''A callable object: instances can be used like functions.'''
+>>> '''Un objeto invocable: sus instancias se usan como funciones.'''
+<<< self.celsius = celsius                 # goes through the setter below
+>>> self.celsius = celsius                 # pasa por el setter de abajo
+<<< def celsius(self, value: float) -> None:   # validation on every assignment
+>>> def celsius(self, value: float) -> None:   # validación en cada asignación
+<<< raise ValueError("below absolute zero")
+>>> raise ValueError("por debajo del cero absoluto")
+<<< def fahrenheit(self) -> float:             # computed attribute
+>>> def fahrenheit(self) -> float:             # atributo calculado
+<<< def from_fahrenheit(cls, f: float) -> "Temperature":   # alternative constructor
+>>> def from_fahrenheit(cls, f: float) -> "Temperature":   # constructor alternativo
+<<< def is_freezing(celsius: float) -> bool:   # related helper, needs neither instance nor class
+>>> def is_freezing(celsius: float) -> bool:   # función auxiliar relacionada, no necesita ni instancia ni clase
+<<< tags: list[str] = field(default_factory=list)      # never a mutable default directly
+>>> tags: list[str] = field(default_factory=list)      # nunca un valor mutable por defecto directamente
+<<< raise ValueError("learning_rate must be positive")
+>>> raise ValueError("learning_rate debe ser positivo")
+<<< class Rectangle:                      # does NOT inherit from anything
+>>> class Rectangle:                      # NO hereda de nada
+<<< def start(self): return f"engine ({self.hp} hp) started"
+>>> def start(self): return f"motor ({self.hp} CV) arrancado"
+<<< def route(self, to): return f"routing to {to}"
+>>> def route(self, to): return f"calculando ruta a {to}"
+<<< class Car:                                  # a car HAS an engine and a GPS
+>>> class Car:                                  # un coche TIENE un motor y un GPS
+<<< class Service(Logging, Caching):           # multiple inheritance
+>>> class Service(Logging, Caching):           # herencia múltiple
+<<< print([c.__name__ for c in Service.__mro__])   # method resolution order
+>>> print([c.__name__ for c in Service.__mro__])   # orden de resolución de métodos
+<<< print(Service().setup())                        # super() follows the MRO: every class runs once
+>>> print(Service().setup())                        # super() sigue el MRO: cada clase se ejecuta una vez
+<<< print(f"per object: regular {measure(PointDict):.0f} bytes, with __slots__ {measure(PointSlots):.0f} bytes")
+>>> print(f"por objeto: normal {measure(PointDict):.0f} bytes, con __slots__ {measure(PointSlots):.0f} bytes")

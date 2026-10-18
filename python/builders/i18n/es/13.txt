@@ -1,0 +1,156 @@
+@@ file 13_kaggle_precios_de_viviendas.ipynb
+
+@@ md 64c860fe4a
+# 13 · Proyecto final: resolver un reto de Kaggle
+
+[Kaggle](https://www.kaggle.com) organiza competiciones de aprendizaje automático. Este proyecto final resuelve
+uno de sus retos clásicos de iniciación (*Getting Started*), **House Prices: Advanced Regression Techniques**:
+predecir el precio de venta de viviendas en Ames (Iowa) a partir de 79 variables descriptivas. El flujo de
+trabajo es el de cualquier proyecto serio: entender los datos y la métrica, fijar una referencia, construir
+variables, validar bien, comparar modelos y solo entonces predecir.
+
+**Aprenderás**
+1. De dónde vienen los datos y si puedes usarlos (licencias)
+2. La métrica de la competición y por qué se calcula sobre el logaritmo del precio
+3. Una exploración que cambia decisiones: asimetría, valores atípicos, los predictores más fuertes
+4. Referencias y después un `Pipeline` de scikit-learn con ingeniería de variables
+5. Validación cruzada, comparación de modelos y mezcla
+6. Qué impulsa las predicciones y cómo enviarías una solución a Kaggle
+
+@@ md d516bdfc7f
+## 1. Los datos y si podemos usarlos
+Los conjuntos de datos de Kaggle tienen sus propias licencias, y **los datos de las competiciones se rigen por las
+reglas de cada competición**, que normalmente solo permiten usarlos en ella y prohíben redistribuirlos. Por eso un
+curso no debería volver a publicar los archivos de una competición de Kaggle.
+
+Los datos de esta competición son un subconjunto del **conjunto Ames Housing**, que Dean De Cock recopiló
+precisamente para la docencia y publicó con el *Journal of Statistics Education* (2011). El conjunto completo
+(2.930 ventas de 2006 a 2010) está disponible abiertamente, aquí a través de [OpenML](https://www.openml.org/d/43926)
+(licencia: pública). Usamos ese, lo citamos y dejamos los archivos de la competición en Kaggle, donde puedes
+descargarlos con tu propia cuenta para enviar una solución.
+
+> De Cock, D. (2011). *Ames, Iowa: Alternative to the Boston Housing Data as an End of Semester Regression
+> Project.* Journal of Statistics Education, 19(3).
+
+@@ md 569b2077b5
+## 2. La métrica
+La competición puntúa la **raíz del error cuadrático medio entre los logaritmos** de los precios previstos y reales.
+En escala logarítmica, un error del 10% cuesta lo mismo en una casa barata que en una cara, que es como piensa un
+comprador en una mala estimación. Así que modelamos directamente `log(precio)`.
+
+Reservamos el 25% de las ventas como una "clasificación" privada que solo se toca una vez, al final.
+
+@@ md 5102be9d13
+## 3. Una exploración que cambia decisiones
+
+@@ md 676695591a
+Dos hallazgos dan forma al modelo:
+- **El tamaño y la calidad dominan**, y el barrio desplaza todo el nivel de precios.
+- Unas pocas **casas muy grandes se vendieron a precios bajos** (en rojo, ventas parciales de inmuebles poco
+  comunes). La propia documentación de De Cock recomienda quitar las casas de más de 4.000 pies cuadrados en los
+  modelos docentes; las quitamos solo del *entrenamiento*, nunca del conjunto de prueba.
+
+@@ md 3e7d8e0b00
+## 4. Referencias
+Todo modelo debe superar algo sencillo. El precio mediano y una regresión de una variable sobre la superficie
+habitable:
+
+@@ md 4d32b78833
+## 5. Ingeniería de variables dentro de un Pipeline
+La ingeniería de variables escrita como función dentro de un `Pipeline` de scikit-learn se aplica igual a los datos
+de entrenamiento, a las particiones de validación y a las casas nuevas, lo que evita el error más común en las
+competiciones: filtrar información de los datos con los que se evalúa.
+
+@@ md 8e9245e694
+## 6. Validación cruzada y comparación
+La validación cruzada de cinco particiones sobre el conjunto de entrenamiento estima cómo puntuaría cada modelo con
+casas no vistas, sin tocar el conjunto de prueba reservado.
+
+@@ md b4cc17fd44
+El modelo lineal y el conjunto de árboles cometen errores de distinto tipo, así que promediarlos supera a cada uno
+por separado. Es el truco más fiable en las competiciones con datos tabulares.
+
+## 7. La evaluación final, una sola vez
+Se ajustan los dos modelos con todo el conjunto de entrenamiento y se puntúan las casas reservadas exactamente una vez.
+
+@@ md 93bdf9db58
+## 8. Enviar la solución a Kaggle
+Un envío a Kaggle es un CSV con una fila por cada casa del archivo de prueba de la competición: `Id,SalePrice`. Así
+lo producirías:
+
+@@ md bd7b1e36be
+Para competir de verdad:
+1. Crea una cuenta en Kaggle, abre la competición *House Prices: Advanced Regression Techniques* y **acepta sus
+   reglas**; después descarga `train.csv` y `test.csv` (o usa la herramienta de línea de órdenes `kaggle`).
+2. Los archivos de la competición escriben las columnas de otra forma (`GrLivArea` en lugar de `Gr_Liv_Area`), usan
+   algunos códigos de categoría distintos y marcan "sin sótano" y similares como valores ausentes. Renombra las
+   columnas, rellena esos valores y reutiliza el mismo pipeline.
+3. Ajusta con todos los datos de entrenamiento de Kaggle, predice `test.csv`, escribe `submission.csv` y súbelo.
+
+Puntuaciones en torno a 0,12 de RMSE(log) son típicas de un buen modelo mezclado como este; la cabeza de la
+clasificación está cerca de 0,10, a base de un trabajo cuidadoso con las variables y muchos modelos mezclados.
+
+## Qué marcó la diferencia
+| Paso | Por qué importó |
+|---|---|
+| leer la licencia | material del curso legal y reutilizable |
+| modelar el logaritmo del precio | encaja con la métrica y doma la asimetría |
+| quitar del entrenamiento los atípicos documentados | unas pocas casas enormes y baratas distorsionan un modelo lineal |
+| variables dentro de un Pipeline | el mismo procesamiento en todas partes, sin filtraciones |
+| validación cruzada antes del conjunto de prueba | una estimación honesta, y el conjunto de prueba sigue siendo un verdadero examen final |
+| mezclar familias de modelos distintas | sus errores se compensan en parte |
+
+## Ejercicios
+1. Añade una codificación por objetivo de `Neighborhood` (el logaritmo medio del precio por barrio, calculado solo dentro de las particiones de validación cruzada) y mide el cambio.
+2. Ajusta `learning_rate` y `max_leaf_nodes` del modelo de boosting con `RandomizedSearchCV`.
+3. Usa `Longitude` y `Latitude` (incluidas en este conjunto) para añadir una variable de "distancia al centro de la ciudad".
+
+@@ code
+<<< # downloaded once, then cached
+>>> # se descarga una vez y queda en caché
+<<< print(f"train {len(train)}, held-out test {len(test)}")
+>>> print(f"entrenamiento {len(train)}, prueba reservada {len(test)}")
+<<< title="sale price ($): right-skewed"
+>>> title="precio de venta ($): asimétrico a la derecha"
+<<< title="log price: close to normal"
+>>> title="log del precio: casi normal"
+<<< print("strongest numeric correlations with log price:\n", top.round(2).to_string())
+>>> print("correlaciones numéricas más fuertes con el log del precio:\n", top.round(2).to_string())
+<<< label="> 4000 sq ft")
+>>> label="> 4000 pies²")
+<<< ax[0].set_xlabel("above-ground living area (sq ft)"); ax[0].set_ylabel("price ($)"); ax[0].legend()
+>>> ax[0].set_xlabel("superficie habitable sobre rasante (pies²)"); ax[0].set_ylabel("precio ($)"); ax[0].legend()
+<<< ax[1].set_title("log price by neighbourhood (sorted by median)")
+>>> ax[1].set_title("log del precio por barrio (ordenado por la mediana)")
+<<< print(f"predict the median        : RMSE(log) {rmse_log(y_test, np.full(len(test), y_train.median())):.4f}")
+>>> print(f"predecir la mediana          : RMSE(log) {rmse_log(y_test, np.full(len(test), y_train.median())):.4f}")
+<<< print(f"log(area) linear regression: RMSE(log) {rmse_log(y_test, lr.predict(np.log(test[['Gr_Liv_Area']]))):.4f}")
+>>> print(f"regresión lineal sobre log(área): RMSE(log) {rmse_log(y_test, lr.predict(np.log(test[['Gr_Liv_Area']]))):.4f}")
+<<< print(f"{X_tr_preview.shape[1]} columns after engineering; new: "
+>>> print(f"{X_tr_preview.shape[1]} columnas tras la ingeniería de variables; nuevas: "
+<<< "Ridge (linear)"
+>>> "Ridge (lineal)"
+<<< "Gradient boosting"
+>>> "Gradient boosting (árboles)"
+<<< "Blend"
+>>> "Mezcla"
+<<< print(f"best blend: {w_best:.2f} x Ridge + {1 - w_best:.2f} x boosting -> CV RMSE(log) {min(blend_scores):.4f}")
+>>> print(f"mejor mezcla: {w_best:.2f} x Ridge + {1 - w_best:.2f} x boosting -> RMSE(log) en validación cruzada {min(blend_scores):.4f}")
+<<< plt.xlabel("weight on Ridge"); plt.ylabel("CV RMSE (log)"); plt.title("Blending two different models")
+>>> plt.xlabel("peso de Ridge"); plt.ylabel("RMSE (log) en validación cruzada"); plt.title("Mezclar dos modelos distintos")
+<<< "median baseline"
+>>> "referencia: mediana"
+<<< "log(area) regression"
+>>> "regresión sobre log(área)"
+<<< print("held-out RMSE(log), lower is better:\n", board.round(4).to_string())
+>>> print("RMSE(log) en la prueba reservada, menor es mejor:\n", board.round(4).to_string())
+<<< print(f"\nblend: median absolute error {np.median(np.abs(err)):.1%} of the price; "
+>>> print(f"\nmezcla: error absoluto mediano del {np.median(np.abs(err)):.1%} del precio; "
+<<< f"80% of houses within {np.quantile(np.abs(err), .8):.1%}")
+>>> f"el 80% de las casas dentro de un {np.quantile(np.abs(err), .8):.1%}")
+<<< ax[0].set_xlabel("actual price ($)"); ax[0].set_ylabel("predicted ($)")
+>>> ax[0].set_xlabel("precio real ($)"); ax[0].set_ylabel("previsto ($)")
+<<< ax[0].set_title("held-out houses")
+>>> ax[0].set_title("casas reservadas")
+<<< ax[1].set_title("what the boosting model relies on (permutation)")
+>>> ax[1].set_title("en qué se apoya el modelo de boosting (permutación)")

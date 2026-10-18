@@ -1,0 +1,190 @@
+@@ file 03_grandes_datos_y_memoria.ipynb
+
+@@ md e3e5e87b9a
+# 03 · Grandes volúmenes de datos con poca RAM
+
+Tarde o temprano un conjunto de datos no cabrá cómodamente en memoria: un portátil tiene de 8 a 16 GB, un
+servidor pequeño en la nube de 2 a 4 GB, y pandas suele necesitar varias veces el tamaño del archivo mientras
+carga. Este módulo muestra cómo medir la memoria con honestidad y las técnicas, y las bibliotecas
+alternativas, que la mantienen bajo control.
+
+**Aprenderás**
+1. Cómo medir la memoria: el tamaño de los objetos y el **pico** de memoria de un proceso completo
+2. Reducir un DataFrame: tipos numéricos más pequeños y categorías
+3. Procesamiento por flujo: trabajar por bloques o con generadores en lugar de cargarlo todo
+4. Archivos columnares: leer solo las columnas y filas necesarias
+5. Alternativas a pandas: **Polars**, **DuckDB**, **PyArrow** (y cuándo tienen sentido Dask o Spark)
+6. Una comparativa: la misma consulta de seis maneras, con tiempos y pico de memoria medidos
+7. **PySpark** para datos que no caben en una máquina: las mismas consultas con la API de DataFrame y con SQL
+
+@@ md ddf95dda47
+## 1. Medir la memoria
+`sys.getsizeof` da el tamaño de un objeto de Python (no de lo que contiene); `DataFrame.memory_usage(deep=True)`
+da el tamaño real de una tabla, cadenas incluidas; `psutil` informa de lo que usa el proceso entero.
+
+@@ md 55f115811e
+## 2. Reducir un DataFrame
+pandas usa por defecto números de 64 bits y cadenas de Python. La mayoría de las columnas necesitan mucho menos.
+
+@@ md 162f2170ec
+Una **categoría** guarda cada cadena distinta una sola vez y almacena por fila un código entero pequeño. Es la
+mayor mejora individual para columnas de texto con pocos valores distintos, y agrupar por ella también es
+más rápido:
+
+@@ md 983398732e
+## 3. Procesamiento por flujo: bloques y generadores
+Si el resultado es pequeño (una suma, un recuento, una media), no hace falta tener todas las filas a la vez.
+
+@@ md f8d3aeefaf
+## 4. Archivos columnares: leer solo lo necesario
+Parquet guarda cada columna por separado y conserva estadísticas de mínimo y máximo por bloque de filas (un
+*row group*). Por eso un lector puede saltarse las columnas que no necesita (**poda de columnas**) y bloques
+enteros de filas que no pueden cumplir un filtro (**predicate pushdown**, empuje de predicados).
+
+@@ md b8275fa7c8
+## 5. Alternativas a pandas
+
+| Biblioteca | Qué es | Puntos fuertes |
+|---|---|---|
+| **Polars** | biblioteca de DataFrames escrita en Rust, construida sobre Apache Arrow | multihilo, consultas diferidas con optimizador, procesamiento por flujo para datos mayores que la RAM |
+| **DuckDB** | una base de datos SQL analítica que se ejecuta dentro del proceso | SQL directamente sobre archivos Parquet/CSV, ejecución fuera de memoria, consumo de memoria muy bajo |
+| **PyArrow** | la biblioteca de Python para Apache Arrow, el formato columnar en memoria que comparten las demás | intercambio sin copias entre herramientas, datasets, funciones de cálculo |
+| **Dask** | API parecida a pandas, repartida en particiones | escala código pandas a muchos núcleos o a un clúster |
+| **Spark (PySpark)** | motor distribuido | datos que necesitan un clúster (cientos de GB y más) |
+
+Regla práctica: hasta unos pocos GB, pandas con buenos tipos basta; por encima, o con poca memoria, Polars o
+DuckDB sobre Parquet suelen resolverlo en una sola máquina; recurre a Dask o Spark solo cuando una máquina de
+verdad no alcance.
+
+@@ md 3212153620
+## 6. Comparativa: una consulta, seis maneras
+Cada enfoque se ejecuta en un **proceso de Python nuevo** para medir su pico de memoria (el máximo de memoria
+residente según el sistema operativo) por separado, sin nada de lo que ya tiene este notebook. Las bibliotecas
+nativas reservan memoria fuera de Python, así que es la única forma justa de compararlas.
+
+@@ md d6f1e9b81d
+**Qué dicen los números.** Dos objetivos distintos, dos ganadores distintos:
+- **La velocidad** viene del formato del archivo y del motor. Leer un Parquet columnar con poda de columnas y
+  un filtro, o dejar que DuckDB o Polars ejecuten la consulta, es entre 6 y 20 veces más rápido que analizar el
+  CSV, porque nunca se lee ni se convierte desde texto nada irrelevante.
+- **La memoria** se ahorra guardando menos. Cargar el CSV entero con los tipos por defecto es, con diferencia,
+  la opción que más memoria consume. Pedir a pandas solo tres columnas con tipos compactos, o procesar por
+  bloques, reduce el pico entre cinco y seis veces, pero analizar texto sigue siendo lento.
+- La memoria extra que aparece para Parquet, Polars y DuckDB es sobre todo la carga de las propias
+  bibliotecas (los motores de Arrow y DuckDB ocupan decenas de MB cada uno); con este tamaño de datos ese coste
+  fijo domina. Se mantiene casi constante al crecer los datos, mientras que una carga completa con pandas
+  crece con el archivo.
+
+En la práctica: guarda los datos en Parquet, selecciona columnas y tipos de entrada, y deja que un motor de
+consultas (DuckDB o Polars) filtre y agregue; procesa por flujo cuando ni siquiera los datos seleccionados quepan.
+
+@@ md 476e1526ce
+## 7. Más allá de una máquina: PySpark
+Cuando los datos ya no caben en una máquina (cientos de GB, muchos TB), o llegan continuamente desde muchas
+fuentes, la herramienta estándar es **Apache Spark**, que se usa desde Python con **PySpark**. Spark divide un
+conjunto de datos en **particiones** y las procesa en paralelo en muchos **ejecutores** (procesos de trabajo,
+a menudo en muchos servidores), coordinados por un **driver** (tu programa de Python). Como el modo diferido de
+Polars, nada se ejecuta hasta que pides un resultado: Spark primero construye un plan, y su optimizador
+(*Catalyst*) lo reescribe empujando los filtros y la selección de columnas hasta la lectura del archivo.
+
+| Concepto | Significado |
+|---|---|
+| `SparkSession` | el punto de entrada; se conecta a un clúster o lo ejecuta todo dentro de una máquina con `local[*]` |
+| DataFrame | una tabla distribuida con esquema, dividida en particiones |
+| transformación | `filter`, `select`, `groupBy`, `join`: diferida, solo añade pasos al plan |
+| acción | `show`, `count`, `collect`, `write`: ejecuta el plan |
+| gestor de clúster | de dónde salen los ejecutores: Kubernetes, YARN, Databricks, AWS EMR, Google Dataproc |
+
+El mismo código se ejecuta en un portátil en modo local y en un clúster de 100 nodos; solo cambia la
+configuración de la sesión. Spark se ejecuta en la máquina virtual de Java, así que necesita un entorno de
+ejecución de Java (versión 17 o posterior).
+
+@@ md bbad4a7475
+### Dos maneras de escribir la misma consulta
+Spark ofrece dos interfaces equivalentes, y los equipos las combinan libremente:
+
+1. **La API de DataFrame**: llamadas a métodos sobre el DataFrame, con expresiones de columna de
+   `pyspark.sql.functions` (`F.col`, `F.avg`, `F.when`, ...). Componible, comprobada por tu editor y fácil de
+   construir desde código.
+2. **SQL**: registra el DataFrame como una vista y ejecuta una consulta en texto con `spark.sql("...")`.
+   Familiar para cualquiera que sepa SQL y cómodo para consultas analíticas largas.
+
+**Consulta 1:** temperatura media y número de lecturas `fault` por sitio.
+
+@@ md dfaccfcaff
+Las dos las compila el mismo optimizador en el mismo tipo de plan físico, así que ninguna es más rápida. El
+plan muestra la optimización en acción: el filtro sobre `status` y las tres columnas necesarias se empujan
+hasta la lectura del Parquet (`PushedFilters`, `ReadSchema`), de modo que las demás columnas nunca se leen.
+
+@@ md 517237cf4b
+**Consulta 2:** algo más completo. Por sitio, el porcentaje de lecturas en cada estado y los tres sensores con
+la temperatura media más alta, usando una columna derivada, una tabla dinámica (pivot), una unión (join) y
+una **función de ventana**.
+
+@@ md 8aba372dd4
+### Sacar resultados y escribir datos
+`toPandas()` trae un resultado al driver como un DataFrame de pandas: hazlo solo con resultados **pequeños**,
+nunca con los datos en bruto. Las salidas grandes se escriben de vuelta al almacenamiento, normalmente en
+Parquet particionado por una columna, para que las consultas posteriores puedan saltarse carpetas enteras.
+
+@@ md 9ac65a7e37
+### ¿Es Spark más rápido aquí?
+
+@@ md 5e8f07be86
+En una sola máquina y con unos pocos millones de filas, no: Spark planifica la consulta, reparte tareas y mueve
+datos entre ellas en un proceso de Java aparte, costes que evitan los motores de un solo nodo como DuckDB y
+Polars. Spark compensa cuando los datos o el trabajo son demasiado grandes para una máquina, cuando los datos ya
+viven en un data lake o un almacén de datos que Spark lee de forma nativa, o en flujos de datos en tiempo real.
+Un camino sensato: pandas, después Polars o DuckDB, después Spark.
+
+| Herramienta | API de funciones | Estilo SQL |
+|---|---|---|
+| **PySpark** | `df.filter(F.col("x") > 1).groupBy("k").agg(F.avg("v"))` | `df.createOrReplaceTempView("t")` y después `spark.sql("SELECT k, AVG(v) FROM t WHERE x > 1 GROUP BY k")` |
+| **Polars** | `df.filter(pl.col("x") > 1).group_by("k").agg(pl.col("v").mean())` | `df.sql("SELECT k, AVG(v) FROM self WHERE x > 1 GROUP BY k")` |
+| **DuckDB** | API relacional: `duckdb.table("t").filter("x > 1").aggregate("k, avg(v)")` | `duckdb.sql("SELECT ...")`, que también puede consultar DataFrames de pandas por su nombre |
+| **pandas** | `df[df.x > 1].groupby("k")["v"].mean()` | `df.query("x > 1")` recibe una expresión de filtro, no SQL completo |
+
+Spark también ofrece una API parecida a pandas (`import pyspark.pandas as ps`) para equipos que llevan código
+pandas a un clúster.
+
+@@ md 4aa27d4da0
+## Lista de comprobación para procesar con memoria limitada
+1. **Mide primero**: `memory_usage(deep=True)`, `psutil` o el pico de una ejecución de prueba.
+2. **Guarda en Parquet**, no en CSV, y lee solo las columnas y filas necesarias.
+3. **Usa los tipos adecuados**: `category` para cadenas repetidas, `float32`/enteros pequeños donde la precisión lo permita.
+4. **Procesa por flujo** cuando el resultado sea pequeño: bloques, generadores o un motor diferido.
+5. **Borra lo que ya no necesites** (`del df`) y evita copias accidentales.
+6. **Deja el trabajo a un motor de consultas** (DuckDB, Polars) cuando pandas lo cargaría todo.
+7. Solo entonces piensa en más RAM o en un clúster (Spark, sección 7).
+
+## Ejercicios
+1. Repite la comparativa agrupando por `sensor_id`. ¿Cambia la clasificación?
+2. Añade un enfoque con `pyarrow.dataset` y una expresión de filtro, y compáralo.
+3. Usa `pl.scan_csv` en lugar de `scan_parquet`: ¿cuánta ventaja de Polars viene del formato del archivo?
+4. En PySpark, encuentra la lectura más caliente de cada sitio dos veces: con `Window` y `F.max`, y en SQL con `MAX(...) OVER (PARTITION BY site)`. Comprueba que ambas dan las mismas filas.
+
+@@ code
+<<< print(f"this kernel uses {proc.memory_info().rss / 1e6:.0f} MB right now")
+>>> print(f"este kernel usa ahora {proc.memory_info().rss / 1e6:.0f} MB")
+<<< print(f"before {before:.0f} MB -> after {mb(small):.0f} MB ({before / mb(small):.1f}x smaller)")
+>>> print(f"antes {before:.0f} MB -> después {mb(small):.0f} MB ({before / mb(small):.1f} veces menos)")
+<<< print(f"groupby on text: {t_obj * 1000:.0f} ms, on category: {t_cat * 1000:.0f} ms")
+>>> print(f"groupby sobre texto: {t_obj * 1000:.0f} ms, sobre categoría: {t_cat * 1000:.0f} ms")
+<<< # mean temperature of 'fault' readings per site, reading the CSV 250,000 rows at a time
+>>> # temperatura media de las lecturas 'fault' por sitio, leyendo el CSV de 250.000 en 250.000 filas
+<<< # the same idea with a plain generator: a pipeline that never holds the file in memory
+>>> # la misma idea con un generador simple: un flujo que nunca tiene el archivo entero en memoria
+<<< print(f"fault rows: {count:,}")
+>>> print(f"filas fault: {count:,}")
+<<< print(subset.shape, f"{mb(subset):.1f} MB loaded instead of the whole table")
+>>> print(subset.shape, f"{mb(subset):.1f} MB cargados en lugar de la tabla entera")
+<<< bench["seconds"].plot.barh(ax=ax[0], color="#0ea5e9"); ax[0].set_xlabel("time (s)")
+>>> bench["seconds"].plot.barh(ax=ax[0], color="#0ea5e9"); ax[0].set_xlabel("tiempo (s)")
+<<< bench["peak_mb"].plot.barh(ax=ax[1], color="#4f46e5"); ax[1].set_xlabel("extra peak memory (MB)")
+>>> bench["peak_mb"].plot.barh(ax=ax[1], color="#4f46e5"); ax[1].set_xlabel("pico de memoria extra (MB)")
+<<< print("identical results:", api_result.collect() == sql_result.collect())
+>>> print("resultados idénticos:", api_result.collect() == sql_result.collect())
+<<< print("same rows:", top3_api.select(cols).collect() == top3_sql.select(cols).collect())
+>>> print("mismas filas:", top3_api.select(cols).collect() == top3_sql.select(cols).collect())
+<<< print(f"query 1 with both engines already running: Spark {t_spark:.2f} s, DuckDB {t_duck:.2f} s")
+>>> print(f"consulta 1 con ambos motores ya en marcha: Spark {t_spark:.2f} s, DuckDB {t_duck:.2f} s")

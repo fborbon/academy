@@ -1,0 +1,147 @@
+@@ file 06_tecnicas_pythonicas.ipynb
+
+@@ md aba1a21b9f
+# 06 · Técnicas pythónicas
+
+Los patrones que distinguen a quien escribe Python con soltura: iteradores y generadores, decoradores,
+gestores de contexto, herramientas funcionales, anotaciones de tipo, registro (logging), pruebas automáticas y
+concurrencia. Cada uno aparece constantemente en las bibliotecas que usarás y en las revisiones de código.
+
+**Aprenderás**
+1. Iteradores y generadores, y la caja de herramientas `itertools`
+2. Decoradores: medir tiempos, cachear, reintentar
+3. Gestores de contexto: limpieza garantizada con `with`
+4. Herramientas funcionales: `functools.partial`, `reduce`, `map`/`filter`
+5. Anotaciones de tipo que las herramientas pueden comprobar
+6. `logging` en lugar de `print`
+7. Pruebas con `pytest`
+8. Concurrencia: hilos, procesos y `asyncio`, y cuál encaja con cada problema (medido)
+
+@@ md ee747d8a0f
+## 1. Iteradores, generadores e `itertools`
+Todo lo que se puede recorrer con un bucle es un *iterable*; `iter()` da un *iterador* que entrega los
+elementos de uno en uno. Los generadores son la forma fácil de escribir iteradores, e `itertools` los combina
+sin construir listas en memoria.
+
+@@ md b6c11115c2
+## 2. Decoradores
+Un decorador es una función que recibe una función y devuelve otra nueva con comportamiento añadido. Poner
+`@timer` encima de una definición significa `f = timer(f)`.
+
+@@ md 925ca9e777
+## 3. Gestores de contexto
+`with` garantiza que cada preparación vaya acompañada de su limpieza, incluso si se lanza una excepción. Los
+archivos, los cerrojos, las transacciones de bases de datos y los ajustes temporales lo usan.
+
+@@ md e662b5e7ec
+## 4. Herramientas funcionales
+
+@@ md 1b08027e76
+## 5. Anotaciones de tipo
+Las anotaciones documentan la intención y permiten que las herramientas (`mypy`, `pyright`, tu editor)
+detecten errores antes de ejecutar el código.
+
+@@ md b0fea85162
+## 6. `logging` en lugar de `print`
+`logging` añade niveles, marcas de tiempo y destinos (consola, archivo, un servicio de registros) que puedes
+cambiar sin tocar el código.
+
+@@ md 574d22dbb2
+## 7. Pruebas con pytest
+Las pruebas son funciones pequeñas cuyo nombre empieza por `test_`; basta con `assert`. `pytest` las encuentra
+y las ejecuta. A continuación se escriben en disco un módulo diminuto y sus pruebas, y se ejecutan.
+
+@@ md 5631bb88fc
+## 8. Concurrencia: hilos, procesos, asyncio
+Python tiene un *bloqueo global del intérprete* (GIL): en el intérprete estándar solo un hilo ejecuta bytecode
+de Python a la vez. La consecuencia:
+
+- Trabajo **limitado por E/S** (esperar a redes, discos, bases de datos): los hilos o `asyncio` solapan las esperas.
+- Trabajo **limitado por CPU** (cálculo en Python puro): solo los **procesos** usan varios núcleos (o
+  bibliotecas como NumPy que liberan el GIL internamente). Python 3.13 añade una compilación opcional sin GIL
+  (free-threaded); todavía es experimental.
+
+Medido a continuación con una tarea de E/S simulada (dormir) y una tarea de CPU (contar primos):
+
+@@ md 0fa4a64471
+Los hilos y asyncio terminan las tareas de E/S en aproximadamente el tiempo de una sola, porque las esperas se
+solapan. Para las tareas de CPU los hilos no aceleran nada, a menudo incluso ralentizan un poco (el GIL más el
+coste de alternar), mientras que los procesos se ejecutan en núcleos distintos y reducen el tiempo a menos de la
+mitad. La ganancia queda por debajo del ideal de 4 veces porque arrancar procesos de trabajo y enviarles el
+trabajo tiene un coste, que pesa en tareas tan cortas.
+
+## Ejercicios
+1. Escribe un decorador `@count_calls` que registre cuántas veces se ha llamado a una función.
+2. Convierte `Timer` en decorador además de gestor de contexto (`contextlib.ContextDecorator`).
+3. Añade una prueba para `apply_discount` con un precio negativo y decide qué debería hacer la función.
+4. Reescribe la prueba de CPU con NumPy (criba vectorizada) y compárala con cuatro procesos.
+
+@@ code
+<<< print(list(it.islice(it.count(start=1, step=3), 5)))                 # infinite counter, first 5
+>>> print(list(it.islice(it.count(start=1, step=3), 5)))                 # contador infinito, los 5 primeros
+<<< print(list(it.accumulate([1, 2, 3, 4])))                              # running total
+>>> print(list(it.accumulate([1, 2, 3, 4])))                              # total acumulado
+<<< @functools.wraps(func)                  # keep the original name and docstring
+>>> @functools.wraps(func)                  # conserva el nombre y la documentación originales
+<<< print(f"{func.__name__} took {(time.perf_counter() - t0) * 1000:.1f} ms")
+>>> print(f"{func.__name__} tardó {(time.perf_counter() - t0) * 1000:.1f} ms")
+<<< '''A decorator with arguments: a function that returns a decorator.'''
+>>> '''Un decorador con argumentos: una función que devuelve un decorador.'''
+<<< print(f"attempt {attempt} failed: {e}")
+>>> print(f"intento {attempt} fallido: {e}")
+<<< raise RuntimeError(f"{func.__name__} failed {times} times")
+>>> raise RuntimeError(f"{func.__name__} falló {times} veces")
+<<< raise ConnectionError("network blip")
+>>> raise ConnectionError("corte de red momentáneo")
+<<< @functools.lru_cache(maxsize=None)          # memoisation from the standard library
+>>> @functools.lru_cache(maxsize=None)          # memoización de la biblioteca estándar
+<<< t0 = time.perf_counter(); print(fib(200)); print(f"{(time.perf_counter() - t0) * 1000:.2f} ms with caching")
+>>> t0 = time.perf_counter(); print(fib(200)); print(f"{(time.perf_counter() - t0) * 1000:.2f} ms con caché")
+<<< os.chdir(old)                         # always runs
+>>> os.chdir(old)                         # se ejecuta siempre
+<<< with open("notes.txt", "w") as f:         # the file is closed when the block ends
+>>> with open("notes.txt", "w") as f:         # el archivo se cierra al terminar el bloque
+<<< print("inside:", os.getcwd() == os.path.realpath(tmp), os.listdir("."))
+>>> print("dentro:", os.getcwd() == os.path.realpath(tmp), os.listdir("."))
+<<< print("back to:", os.getcwd() != os.path.realpath(tmp))
+>>> print("de vuelta:", os.getcwd() != os.path.realpath(tmp))
+<<< with suppress(FileNotFoundError):             # ignore one specific, expected error
+>>> with suppress(FileNotFoundError):             # ignora un error concreto y esperado
+<<< '''The class form: __enter__ and __exit__.'''
+>>> '''La forma de clase: __enter__ y __exit__.'''
+<<< return False                          # do not swallow exceptions
+>>> return False                          # no se tragan las excepciones
+<<< print(f"block took {t.elapsed * 1000:.1f} ms")
+>>> print(f"el bloque tardó {t.elapsed * 1000:.1f} ms")
+<<< log.debug("not shown: below the INFO level")
+>>> log.debug("no se muestra: por debajo del nivel INFO")
+<<< log.info("loaded %d rows", 1200)              # arguments, not f-strings: formatted only if emitted
+>>> log.info("cargadas %d filas", 1200)              # argumentos, no f-strings: solo se formatea si se emite
+<<< log.warning("3 rows had missing prices")
+>>> log.warning("a 3 filas les faltaba el precio")
+<<< log.exception("division failed")          # includes the traceback
+>>> log.exception("la división falló")          # incluye la traza
+<<< time.sleep(0.2)                          # stands for waiting on a network request
+>>> time.sleep(0.2)                          # representa la espera de una petición de red
+<<< results["I/O sequential"] = timed("I/O: sequential", lambda: [io_task(i) for i in range(JOBS)])
+>>> results["E/S secuencial"] = timed("E/S: secuencial", lambda: [io_task(i) for i in range(JOBS)])
+<<< results["I/O threads"] = timed("I/O: 8 threads", lambda: list(ex.map(io_task, range(JOBS))))
+>>> results["E/S hilos"] = timed("E/S: 8 hilos", lambda: list(ex.map(io_task, range(JOBS))))
+<<< # notebooks already run an event loop, so run asyncio in a fresh thread for this demo
+>>> # los notebooks ya tienen un bucle de eventos en marcha, así que asyncio se ejecuta en un hilo nuevo para esta demo
+<<< results["I/O asyncio"] = timed("I/O: asyncio", lambda: ex.submit(asyncio.run, main()).result())
+>>> results["E/S asyncio"] = timed("E/S: asyncio", lambda: ex.submit(asyncio.run, main()).result())
+<<< results["CPU sequential"] = timed("CPU: sequential", lambda: [cpu_task(N) for _ in range(4)])
+>>> results["CPU secuencial"] = timed("CPU: secuencial", lambda: [cpu_task(N) for _ in range(4)])
+<<< results["CPU threads"] = timed("CPU: 4 threads", lambda: list(ex.map(cpu_task, [N] * 4)))
+>>> results["CPU hilos"] = timed("CPU: 4 hilos", lambda: list(ex.map(cpu_task, [N] * 4)))
+<<< # Worker processes must be able to find cpu_task. Functions defined in a notebook are only visible to
+>>> # Los procesos de trabajo deben poder encontrar cpu_task. Las funciones definidas en un notebook solo las ven
+<<< # them with the "fork" start method (Linux, Colab). In a .py script any start method works.
+>>> # con el método de arranque "fork" (Linux, Colab). En un script .py funciona cualquier método.
+<<< results["CPU processes"] = timed("CPU: 4 processes", lambda: list(ex.map(cpu_task, [N] * 4)))
+>>> results["CPU procesos"] = timed("CPU: 4 procesos", lambda: list(ex.map(cpu_task, [N] * 4)))
+<<< print("CPU: processes need a .py file on this platform (no 'fork'); see the exercise below")
+>>> print("CPU: en esta plataforma los procesos necesitan un archivo .py (sin 'fork'); mira el ejercicio de abajo")
+<<< plt.xlabel("seconds"); plt.title("Threads help waiting; processes help computing"); plt.tight_layout(); plt.show()
+>>> plt.xlabel("segundos"); plt.title("Los hilos ayudan a esperar; los procesos, a calcular"); plt.tight_layout(); plt.show()

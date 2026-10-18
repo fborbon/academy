@@ -2,8 +2,8 @@
 
     python3 site/build_site.py            # writes site/dist/
 
-Editions come from LANGS: English at the site root (a Spanish edition can be added the same way as in
-Neural Networks 1001, under /es/). The notebooks are rendered with nbconvert's "basic" template
+Two editions are built from LANGS: English at the site root and Spanish under /es/ (notebooks from
+python/es/). The notebooks are rendered with nbconvert's "basic" template
 (body only) and wrapped in the course layout from site/templates. Nothing is fetched at build time.
 """
 import html
@@ -47,7 +47,7 @@ LANGS = {
     "en": dict(
         dir="", nb_dir="", course="Python 1001", course_html="Python <b>1001</b>",
         description="A free, hands-on Python course in three levels: data structures and tooling, professional programming and libraries, and frontier science, AI and forecasting, ending with a Kaggle challenge.",
-        switch_label="", switch_title="",
+        switch_label="Español", switch_title="Leer el curso en español",
         tracks=[("Intro", "Data structures, formats, data larger than memory, environments, containers and editors."),
                 ("Medium", "Object-oriented and Pythonic programming, testing, concurrency, and building, publishing and maintaining libraries."),
                 ("Advanced", "Python at the frontier: biology, medicine, physics, space, economics, AI frameworks, time series forecasting and a Kaggle capstone.")],
@@ -102,6 +102,66 @@ LANGS = {
             js_mark="Mark notebook {n} as complete", js_done="✓ Notebook {n} completed (click to undo)",
             js_progress="{done} of {total} notebooks completed", js_none="Not started yet",
             js_resume="Continue with notebook {n}: {title} →",
+        ),
+    ),
+    "es": dict(
+        dir="es", nb_dir="es", course="Python 1001", course_html="Python <b>1001</b>",
+        description="Un curso de Python gratuito y práctico en tres niveles: estructuras de datos y herramientas, programación profesional y bibliotecas, y ciencia de frontera, IA y previsión, con un reto de Kaggle al final.",
+        switch_label="English", switch_title="Read the course in English",
+        tracks=[("Inicial", "Estructuras de datos, formatos, datos mayores que la memoria, entornos, contenedores y editores."),
+                ("Intermedio", "Programación orientada a objetos y pythónica, pruebas, concurrencia, y construir, publicar y mantener bibliotecas."),
+                ("Avanzado", "Python en la frontera: biología, medicina, física, espacio, economía, frameworks de IA, previsión de series temporales y un proyecto final de Kaggle.")],
+        modules=[
+            ("01_estructuras_de_datos.ipynb", "01-estructuras-de-datos", "Estructuras de datos en Python",
+             "Listas, tuplas, diccionarios y conjuntos, el módulo collections, funciones, un primer vistazo a las clases, comprensiones, generadores y excepciones, y por qué importa la estructura elegida, medido.",
+             ["list, tuple, dict, set", "collections", "funciones", "generadores", "excepciones", "Big-O"]),
+            ("02_formatos_de_datos.ipynb", "02-formatos-de-datos", "Formatos de datos y pandas",
+             "El DataFrame de pandas y después CSV, JSON, Excel, Parquet, Feather, SQLite, YAML, TOML y pickle comparados con los mismos datos: tamaño, velocidad y qué tipos sobreviven.",
+             ["pandas", "CSV y JSON", "Parquet", "SQLite", "YAML y TOML", "seguridad de pickle"]),
+            ("03_grandes_datos_y_memoria.ipynb", "03-grandes-datos-y-memoria", "Grandes volúmenes de datos con poca RAM",
+             "Mide la memoria con honestidad, reduce DataFrames con los tipos adecuados, procesa por bloques, lee de Parquet solo lo necesario, compara pandas con Polars, DuckDB y PyArrow, y escala con PySpark.",
+             ["perfilado de memoria", "categorías", "por bloques", "Polars y DuckDB", "PyArrow", "PySpark"]),
+            ("04_entornos_y_herramientas.ipynb", "04-entornos-y-herramientas", "Entornos, paquetes, contenedores y editores",
+             "Entornos aislados, pip, uv, pipx, conda, apt y snap, archivos de bloqueo, Docker para desplegar y los editores que usan los profesionales: VS Code, PyCharm, Eclipse, Vim.",
+             ["venv", "pip y uv", "conda", "archivos de bloqueo", "Docker", "IDE"]),
+            ("05_python_orientado_a_objetos.ipynb", "05-python-orientado-a-objetos", "Python orientado a objetos",
+             "Los cuatro pilares, el modelo de datos y los métodos especiales, propiedades, dataclasses, clases base abstractas y protocolos, composición, el MRO y __slots__.",
+             ["clases", "métodos dunder", "propiedades", "dataclasses", "Protocol", "composición"]),
+            ("06_tecnicas_pythonicas.ipynb", "06-tecnicas-pythonicas", "Técnicas pythónicas",
+             "Iteradores, decoradores, gestores de contexto, herramientas funcionales, anotaciones de tipo, logging, pruebas con pytest, e hilos frente a procesos frente a asyncio, medido.",
+             ["generadores", "decoradores", "gestores de contexto", "tipado", "pytest", "concurrencia"]),
+            ("07_bibliotecas_compilar_publicar.ipynb", "07-bibliotecas-compilar-publicar", "Bibliotecas: acelerar, empaquetar, publicar, contribuir",
+             "Acelera bucles críticos con NumPy, Numba, Cython y C, construye un wheel a partir de pyproject.toml, publica con trusted publishing, versiona sin romper a los usuarios y contribuye a otros proyectos.",
+             ["Numba", "Cython", "extensiones en C", "pyproject.toml", "PyPI", "SemVer y obsolescencia"]),
+            ("08_ciencias_de_la_vida.ipynb", "08-ciencias-de-la-vida", "Ciencias de la vida: biología y medicina",
+             "Secuencias, evolución simulada y un árbol genealógico reconstruido con Biopython, análisis de supervivencia de un ensayo de cáncer de mama con lifelines y un modelo de diagnóstico ajustado a la sensibilidad.",
+             ["Biopython", "alineamiento", "filogenia", "Kaplan-Meier", "regresión de Cox", "ROC"]),
+            ("09_fisica_y_espacio.ipynb", "09-fisica-y-espacio", "Física e investigación espacial",
+             "Deduce un péndulo con SymPy, simúlalo con SciPy, encuentra su frecuencia con una FFT, verifica la tercera ley de Kepler con Astropy e integra una órbita comprobada con leyes de conservación.",
+             ["SymPy", "EDO con SciPy", "FFT", "unidades con Astropy", "Kepler", "órbitas"]),
+            ("10_economia.ipynb", "10-economia", "Economía y econometría",
+             "Cincuenta años de datos de EE. UU. con statsmodels: la ley de Okun con errores estándar robustos, su estabilidad por décadas y una previsión ARIMA contrastada frente a referencias ingenuas.",
+             ["statsmodels", "MCO y HAC", "ley de Okun", "ARIMA", "backtesting"]),
+            ("11_frameworks_de_ia.ipynb", "11-frameworks-de-ia", "Frameworks de IA: PyTorch y TensorFlow",
+             "La misma red convolucional en PyTorch y en TensorFlow/Keras: tensores, diferenciación automática, bucles de entrenamiento, guardar y exportar, y cómo elegir.",
+             ["PyTorch", "TensorFlow", "Keras", "autograd", "CNN", "ONNX"]),
+            ("12_prevision_de_series_temporales.ipynb", "12-prevision-de-series-temporales", "Previsión de series temporales",
+             "Ingenuo estacional, SARIMA, Prophet, XGBoost, una GRU en PyTorch, una LSTM en Keras y un Transformer en dos problemas: demanda de bicicletas, donde gana el gradient boosting, y caudal de un río, donde ganan las redes neuronales, y por qué.",
+             ["ingenuo estacional", "SARIMA", "Prophet", "XGBoost", "GRU y LSTM", "Transformer"]),
+            ("13_kaggle_precios_de_viviendas.ipynb", "13-kaggle-precios-de-viviendas", "Proyecto final: resolver un reto de Kaggle",
+             "El reto House Prices de Kaggle de principio a fin: licencias, la métrica RMSE logarítmica, exploración, ingeniería de variables en un Pipeline, validación cruzada, mezcla de modelos y un archivo de envío.",
+             ["Kaggle", "licencias de datos", "ingeniería de variables", "Pipeline", "validación cruzada", "mezcla de modelos"]),
+        ],
+        t=dict(
+            nav_projects="Proyectos", toggle_theme="Cambiar a modo oscuro",
+            footer_data="Los datos se generan en los notebooks, vienen con las bibliotecas o se descargan de OpenML citando su origen. Código y texto: licencia MIT.",
+            completed="✓ completado", minutes="~{m} min", runs="se ejecuta en {cpu} en una CPU", part="Módulo {n}",
+            module_of="Notebook {n} de {total}", download="⬇ Descargar notebook", colab="Abrir en Colab", github="Ver en GitHub",
+            overview="← Presentación del curso", modules_btn="Notebooks ▾", on_page="En esta página", prev="← Anterior", next="Siguiente →",
+            back="← Volver a la", finished="¿Terminaste? →", overview_short="Presentación del curso", fig_alt="figura generada por el notebook",
+            js_mark="Marcar el notebook {n} como completado", js_done="✓ Notebook {n} completado (clic para deshacer)",
+            js_progress="{done} de {total} notebooks completados", js_none="Todavía sin empezar",
+            js_resume="Continúa con el notebook {n}: {title} →",
         ),
     ),
 }

@@ -6,6 +6,8 @@ on an ordinary laptop CPU in a few minutes.
 
 **Website:** [python.academy.forwardforecasting.eu](https://python.academy.forwardforecasting.eu/)
 
+**Spanish edition (edición en español):** [python.academy.forwardforecasting.eu/es/](https://python.academy.forwardforecasting.eu/es/), with the notebooks in [`es/`](es/).
+
 ## Table of contents
 1. [Syllabus](#syllabus)
 2. [Run it yourself](#run-it-yourself)
@@ -86,6 +88,12 @@ The same pipeline as the other academy course:
 - `builders/build_NN.py` writes each notebook from Python (`builders/nbhelper.py`); never edit a notebook
   by hand. `builders/rebuild.py NN --execute` regenerates and runs it (one at a time), and
   `rebuild.py all --check` verifies in CI that every committed notebook matches its builder.
+- **Spanish edition:** English is the source language. `builders/i18n/es/NN.txt` holds, per notebook, the Spanish
+  text of every markdown cell (matched by a fingerprint of the English text) and exact replacements for code
+  comments and labels (never logic or data). `rebuild.py NN --lang es --execute` writes and runs
+  `es/<spanish name>.ipynb`; a missing or stale translation stops the build, and `rebuild.py all --check` covers
+  both languages, so the editions cannot drift apart. `builders/i18n_skeleton.py NN --missing` lists cells that
+  need translating after an English change.
 - `site/build_site.py` renders the saved outputs with nbconvert into a static site (`site/dist/`), with a
   syllabus, lesson pages, progress kept in the browser, and downloadable notebooks.
 - `.github/workflows/deploy-python.yml` (repository root) checks, builds and copies the site into the

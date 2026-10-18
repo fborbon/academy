@@ -1,0 +1,129 @@
+@@ file 09_fisica_y_espacio.ipynb
+
+@@ md 65f1a120ad
+# 09 · Física e investigación espacial
+
+Desde deducir ecuaciones hasta simular órbitas, Python cubre todo el ciclo de la ciencia física: **SymPy** hace
+el álgebra, **SciPy** resuelve lo que no tiene solución cerrada, **NumPy** analiza señales y **Astropy**, la
+biblioteca comunitaria de la astronomía, mantiene correctas las unidades y las constantes.
+
+**Aprenderás**
+1. Matemáticas simbólicas: deducir la ecuación de movimiento de un péndulo con SymPy
+2. Simulación numérica: resolverla con SciPy y ver dónde falla la aproximación de los libros de texto
+3. Análisis de señales: recuperar la frecuencia de un péndulo con la transformada de Fourier
+4. Unidades y constantes con Astropy, y la tercera ley de Kepler comprobada con los planetas reales
+5. Integrar una órbita y validarla con la conservación de la energía y del momento angular
+6. Coordenadas celestes: convertir entre sistemas de referencia
+
+@@ md 12c09d6734
+## 1. Deducir la ecuación de movimiento de forma simbólica
+Para un péndulo de longitud $L$, el lagrangiano es la energía cinética menos la potencial,
+$\mathcal{L} = \tfrac12 m L^2 \dot\theta^2 + m g L \cos\theta$. La ecuación de Euler-Lagrange da el movimiento;
+SymPy hace el cálculo.
+
+@@ md 9be84a8282
+## 2. Simular el péndulo completo
+La ecuación real $\ddot\theta = -\tfrac{g}{L}\sin\theta$ no tiene solución elemental. `scipy.integrate.solve_ivp`
+la integra numéricamente. Compararla con la fórmula de ángulos pequeños muestra cuándo basta la aproximación de
+los libros de texto.
+
+@@ md 2838c657b1
+## 3. Encontrar la frecuencia con una transformada de Fourier
+Los experimentos dan medidas con ruido, no ecuaciones. La transformada rápida de Fourier (FFT) encuentra la
+frecuencia dominante de una señal ruidosa.
+
+@@ md ebff932ddb
+## 4. Unidades, constantes y la tercera ley de Kepler con Astropy
+Los errores de unidades han destruido naves espaciales. Astropy asocia unidades a los números, los convierte y
+se niega a sumar magnitudes incompatibles. La tercera ley de Kepler dice que $T^2 = \frac{4\pi^2}{G M_\odot} a^3$:
+el cuadrado del periodo orbital de un planeta crece con el cubo de su distancia al Sol.
+
+@@ md 7ce244f383
+## 5. Integrar una órbita y comprobarla con leyes de conservación
+Lanzamos un satélite a una órbita elíptica alrededor de la Tierra e integramos la ley de la gravitación de
+Newton. Una solución numérica solo es fiable si respeta la física: la **energía** y el **momento angular**
+deben mantenerse constantes. Comparar una integración descuidada con una precisa muestra por qué importan las
+tolerancias.
+
+@@ md f94103e560
+## 6. Coordenadas celestes
+Los astrónomos describen posiciones en distintos sistemas de referencia: ecuatorial (ascensión recta,
+declinación), galáctico, eclíptico. Astropy convierte entre ellos.
+
+@@ md 51c0291918
+## Bibliotecas que conviene conocer
+| Área | Bibliotecas |
+|---|---|
+| matemáticas simbólicas | SymPy |
+| simulación, EDO, optimización | SciPy, JAX (simulación diferenciable) |
+| astronomía | Astropy, astroquery (consultas a archivos), Skyfield (efemérides precisas), poliastro/hapsira (astrodinámica), lightkurve (curvas de luz de Kepler/TESS) |
+| física de partículas y nuclear | uproot, awkward-array, scikit-hep |
+| fluidos, elementos finitos | FEniCS, PyClaw |
+| computación cuántica | Qiskit, Cirq, PennyLane |
+
+## Ejercicios
+1. Añade resistencia del aire (un término $-c\,\dot\theta$) al péndulo y mide cómo decae la amplitud.
+2. Aumenta la velocidad de lanzamiento a 1,45 veces la circular. ¿Sigue siendo una órbita ligada? Mira el signo de la energía.
+3. Usa la tabla de planetas para ajustar $\log T$ frente a $\log a$ con NumPy y recuperar el exponente 3/2.
+
+@@ code
+<<< print("small-angle period:", sp.simplify(2 * sp.pi / sp.sqrt(g / L)))
+>>> print("periodo con ángulos pequeños:", sp.simplify(2 * sp.pi / sp.sqrt(g / L)))
+<<< label=f"{amp_deg}° (numerical)")
+>>> label=f"{amp_deg}° (numérico)")
+<<< ax[0].set_xlabel("time (s)"); ax[0].set_ylabel("angle (°)"); ax[0].legend(fontsize=8); ax[0].set_title("solid: exact, dashed: small-angle")
+>>> ax[0].set_xlabel("tiempo (s)"); ax[0].set_ylabel("ángulo (°)"); ax[0].legend(fontsize=8); ax[0].set_title("continua: exacta; discontinua: ángulos pequeños")
+<<< return 2 * crossings[0]              # velocity is zero at each turning point, half a period apart
+>>> return 2 * crossings[0]              # la velocidad es cero en cada punto de retorno, separados medio periodo
+<<< ax[1].set_xlabel("amplitude (°)"); ax[1].set_ylabel("period / small-angle period"); ax[1].set_title("The period grows with amplitude")
+>>> ax[1].set_xlabel("amplitud (°)"); ax[1].set_ylabel("periodo / periodo de ángulos pequeños"); ax[1].set_title("El periodo crece con la amplitud")
+<<< print(f"error of the small-angle period: {100 * (period(np.radians(10)) / T0 - 1):.2f}% at 10°, "
+>>> print(f"error del periodo de ángulos pequeños: {100 * (period(np.radians(10)) / T0 - 1):.2f}% a 10°, "
+<<< f"{100 * (period(np.radians(60)) / T0 - 1):.1f}% at 60°")
+>>> f"{100 * (period(np.radians(60)) / T0 - 1):.1f}% a 60°")
+<<< fs, duration = 100, 60                            # 100 samples per second, one minute
+>>> fs, duration = 100, 60                            # 100 muestras por segundo, un minuto
+<<< measured = signal + rng.normal(0, 0.08, tt.size)   # sensor noise
+>>> measured = signal + rng.normal(0, 0.08, tt.size)   # ruido del sensor
+<<< print(f"dominant frequency {f_peak:.4f} Hz -> period {1 / f_peak:.3f} s (simulation: {period(amp):.3f} s)")
+>>> print(f"frecuencia dominante {f_peak:.4f} Hz -> periodo {1 / f_peak:.3f} s (simulación: {period(amp):.3f} s)")
+<<< print(f"frequency resolution of a {duration} s recording: {1 / duration:.4f} Hz, so the estimate is exact "
+>>> print(f"resolución en frecuencia de una grabación de {duration} s: {1 / duration:.4f} Hz, así que la estimación es exacta "
+<<< "to within one frequency bin; record longer to resolve finer")
+>>> "dentro de un intervalo de frecuencia; graba más tiempo para afinar más")
+<<< ax[0].plot(tt[:500], measured[:500], lw=.8); ax[0].set_xlabel("time (s)"); ax[0].set_title("noisy measurement")
+>>> ax[0].plot(tt[:500], measured[:500], lw=.8); ax[0].set_xlabel("tiempo (s)"); ax[0].set_title("medida con ruido")
+<<< ax[1].plot(freqs, spectrum); ax[1].set_xlim(0, 2); ax[1].set_xlabel("frequency (Hz)"); ax[1].set_title("amplitude spectrum")
+>>> ax[1].plot(freqs, spectrum); ax[1].set_xlim(0, 2); ax[1].set_xlabel("frecuencia (Hz)"); ax[1].set_title("espectro de amplitud")
+<<< print("refused:", e)
+>>> print("rechazado:", e)
+<<< print(f"\n{'planet':<9}{'observed (yr)':>14}{'Kepler (yr)':>13}{'error':>9}")
+>>> print(f"\n{'planeta':<9}{'observado (a)':>14}{'Kepler (a)':>13}{'error':>9}")
+<<< mu = (const.G * const.M_earth).to(u.km**3 / u.s**2).value      # Earth's gravitational parameter, km^3/s^2
+>>> mu = (const.G * const.M_earth).to(u.km**3 / u.s**2).value      # parámetro gravitatorio de la Tierra, km^3/s^2
+<<< r0 = 6378 + 500                                                  # 500 km altitude, km
+>>> r0 = 6378 + 500                                                  # 500 km de altitud, en km
+<<< state0 = [r0, 0, 0, 1.25 * v_circ]                               # 25% faster than circular: an ellipse
+>>> state0 = [r0, 0, 0, 1.25 * v_circ]                               # un 25% más rápido que la circular: una elipse
+<<< T_orbit = 24 * 3600                                               # one day, about 4.4 orbits
+>>> T_orbit = 24 * 3600                                               # un día, unas 4,4 órbitas
+<<< x, y, vx, vy = sol.sol(tt)                                    # evaluate the solution on a fine grid
+>>> x, y, vx, vy = sol.sol(tt)                                    # evaluar la solución en una malla fina
+<<< label=f"rtol={rtol:g} ({sol.t.size} steps)")
+>>> label=f"rtol={rtol:g} ({sol.t.size} pasos)")
+<<< print(f"rtol={rtol:g}: {sol.t.size} steps, relative energy drift {abs(energy[-1] / energy[0] - 1):.1e}, "
+>>> print(f"rtol={rtol:g}: {sol.t.size} pasos, deriva relativa de la energía {abs(energy[-1] / energy[0] - 1):.1e}, "
+<<< f"angular momentum drift {abs(h[-1] / h[0] - 1):.1e}")
+>>> f"deriva del momento angular {abs(h[-1] / h[0] - 1):.1e}")
+<<< print(f"after one day the loose integration places the satellite {np.linalg.norm(final[1e-3] - final[1e-10]):,.0f} km "
+>>> print(f"tras un día, la integración poco precisa sitúa el satélite a {np.linalg.norm(final[1e-3] - final[1e-10]):,.0f} km "
+<<< "from where it really is")
+>>> "de donde realmente está")
+<<< ax[0].add_patch(plt.Circle((0, 0), 6378, color="#3b82f6")); ax[0].set_aspect("equal"); ax[0].legend(); ax[0].set_title("orbit (km)")
+>>> ax[0].add_patch(plt.Circle((0, 0), 6378, color="#3b82f6")); ax[0].set_aspect("equal"); ax[0].legend(); ax[0].set_title("órbita (km)")
+<<< ax[1].set_xlabel("hours"); ax[1].set_ylabel("relative energy error"); ax[1].legend(); ax[1].set_title("conservation check")
+>>> ax[1].set_xlabel("horas"); ax[1].set_ylabel("error relativo de la energía"); ax[1].legend(); ax[1].set_title("comprobación de la conservación")
+<<< "Andromeda galaxy (M31)"
+>>> "Galaxia de Andrómeda (M31)"
+<<< print("angular separation Sirius-Betelgeuse:", sirius.separation(betel).to_string(unit=u.deg, precision=1))
+>>> print("separación angular Sirius-Betelgeuse:", sirius.separation(betel).to_string(unit=u.deg, precision=1))

@@ -1,0 +1,151 @@
+@@ file 07_bibliotecas_compilar_publicar.ipynb
+
+@@ md abf14f103f
+# 07 · Bibliotecas: usar, acelerar, empaquetar, publicar, contribuir
+
+La verdadera fuerza de Python es su ecosistema de bibliotecas. Este módulo las mira desde todos los ángulos:
+usarlas bien, hacer rápido el código lento con extensiones compiladas, convertir tu propio código en un
+paquete instalable, publicarlo, gestionar versiones sin romper a tus usuarios y contribuir a los proyectos de
+los que dependes.
+
+**Aprenderás**
+1. Encontrar e inspeccionar bibliotecas: versiones, dependencias, documentación
+2. Por qué los bucles en Python puro son lentos y cuatro formas de acelerarlos: NumPy, Numba, Cython y C (medido)
+3. Empaquetado: un `pyproject.toml`, construir un wheel e instalarlo en un entorno limpio
+4. Publicar en PyPI de forma segura
+5. Versiones: versionado semántico, especificadores, obsolescencias y compatibilidad hacia atrás
+6. Convertirte en colaborador
+
+@@ md 3ea83d9cb0
+## 1. Inspeccionar las bibliotecas instaladas
+
+@@ md 96e833b506
+## 2. Acelerar un bucle crítico
+Python ejecuta cada operación a través del intérprete, comprobando los tipos cada vez. En bucles numéricos eso
+es de decenas a cientos de veces más lento que el código compilado. La misma función, un bucle con mucho
+cálculo numérico, implementada de cinco maneras:
+
+@@ md 570a4ac071
+**Numba** compila una función de Python a código máquina la primera vez que se llama (compilación justo a
+tiempo, JIT). Sigues escribiendo bucles; solo añades un decorador.
+
+@@ md f8117c4cdf
+**Cython** es un superconjunto de Python que se compila a C. Declarar tipos de C (`cdef double`) es lo que lo
+hace rápido. `pyximport` compila un archivo `.pyx` al importarlo; los paquetes reales lo compilan al
+construirse.
+
+@@ md e5ffe72c03
+**C a través de `ctypes`**: escribe la función en C, compílala como biblioteca compartida y llámala desde
+Python. Así envuelven muchas bibliotecas código C existente (otras usan `cffi` o, para C++, `pybind11`).
+
+@@ md 71d1b62876
+Las cinco coinciden en el resultado con muchos decimales, y cada alternativa es aproximadamente diez veces más
+rápida que el bucle en Python puro. Quedan cerca unas de otras porque el tiempo que queda se pasa dentro de
+`sin` y `sqrt`; en bucles con cuerpos más baratos (contar, comparar, aritmética sencilla) la diferencia con
+Python puro suele ser de 50 a 100 veces. Cuál elegir:
+
+| Opción | Esfuerzo | Mejor cuando |
+|---|---|---|
+| vectorización con NumPy | reescribir como operaciones con arrays | el cálculo se expresa sobre arrays completos |
+| Numba | un decorador | bucles numéricos sobre arrays de NumPy y escalares |
+| Cython | un archivo `.pyx` tipado más un paso de compilación | además necesitas llamar a bibliotecas de C o distribuir un paquete compilado |
+| C / C++ (ctypes, cffi, pybind11) | escribir y compilar código nativo | envolver una biblioteca nativa existente |
+| Rust (PyO3, maturin) | Rust | bibliotecas nuevas donde el rendimiento es crítico (Polars, Pydantic y ruff se construyen así) |
+
+**Perfila siempre primero** (`cProfile`, `line_profiler`, `py-spy`): acelera la función que de verdad consume
+el tiempo.
+
+## 3. Empaquetar tu propia biblioteca
+Un paquete es una carpeta con un `__init__.py`; una *distribución* (un **wheel**) es lo que instala `pip`.
+Todos los metadatos viven en `pyproject.toml`. A continuación se crea una biblioteca diminuta, `ministats`, se
+construye como wheel, se comprueba y se instala en un entorno limpio.
+
+@@ md 048fe2c9e6
+## 4. Publicar
+1. Crea cuentas en **TestPyPI** (test.pypi.org) y **PyPI** (pypi.org), con autenticación en dos pasos.
+2. Sube primero a TestPyPI e instala desde allí: `pip install -i https://test.pypi.org/simple/ ministats`.
+3. Publica en PyPI desde la integración continua con **trusted publishing** (publicación de confianza): GitHub
+   Actions demuestra su identidad ante PyPI, así que no se guarda ningún token de API en ninguna parte.
+
+@@ md 7a84448e62
+## 5. Versiones y compatibilidad hacia atrás
+**Versionado semántico** (`MAYOR.MENOR.PARCHE`): PARCHE corrige errores, MENOR añade funciones sin romper
+nada y MAYOR rompe algo. Así los usuarios pueden depender de `>=2.3,<3`.
+
+@@ md 40882d591e
+Eliminar o renombrar algo rompe el código de tus usuarios. La forma educada es un **periodo de obsolescencia**:
+mantener funcionando el nombre antiguo, avisar y eliminarlo solo en la siguiente versión mayor.
+
+@@ md aa25a0ce33
+Reglas prácticas de compatibilidad para autores de bibliotecas:
+- Los parámetros nuevos llevan valor por defecto y son solo por nombre (`*,`), para que las llamadas existentes no cambien de significado.
+- Nunca cambies lo que devuelve una llamada existente en una versión menor.
+- Mantén un `CHANGELOG.md`; marca con claridad los cambios incompatibles.
+- Prueba en la integración continua con las versiones más antiguas y más nuevas de Python y de las dependencias que soportas.
+- Declara `requires-python` y los rangos de dependencias con honestidad; no fijes versiones exactas en una biblioteca.
+
+## 6. Convertirte en colaborador
+1. **Usa el proyecto y lee su guía CONTRIBUTING y su código de conducta.**
+2. Empieza por algo pequeño: arreglos de documentación, una prueba que falle y reproduzca un error, incidencias etiquetadas *good first issue*.
+3. Habla antes de hacer cambios grandes: abre o comenta primero una incidencia.
+4. Haz un fork, crea una rama, instala el proyecto en modo editable (`pip install -e ".[dev]"`) y ejecuta sus pruebas.
+5. Haz un único cambio concreto, con pruebas, formateado con las herramientas del proyecto.
+6. Abre una pull request que explique el *porqué*, enlaza la incidencia y responde a la revisión con amabilidad y paciencia.
+7. Algunos proyectos piden firmar un acuerdo de licencia de contribución; comprueba la licencia de cualquier cosa que copies.
+
+Revisar pull requests de otras personas, clasificar incidencias y responder preguntas también son
+contribuciones, y es lo que más suele faltar a quienes mantienen los proyectos.
+
+## Ejercicios
+1. Añade una función `median` a `ministats` con su prueba, sube la versión a `0.2.0`, reconstruye e instala el wheel nuevo encima del antiguo.
+2. Usa `cProfile` (`python -m cProfile -s cumtime script.py`) para encontrar la función más lenta de uno de tus scripts.
+3. Lleva `py_version` a Numba con `parallel=True` y `numba.prange`. ¿Cuánto más rápida es en tus núcleos?
+4. Elige una biblioteca que uses, abre su gestor de incidencias y lee tres tickets *good first issue*.
+
+@@ code
+<<< print("pandas requires:", [r for r in (requires("pandas") or []) if "extra" not in r])
+>>> print("pandas requiere:", [r for r in (requires("pandas") or []) if "extra" not in r])
+<<< print("summary:", metadata("polars")["Summary"])
+>>> print("resumen:", metadata("polars")["Summary"])
+<<< print(numpy.clip.__doc__.strip().splitlines()[0])      # help(numpy.clip) prints the full documentation
+>>> print(numpy.clip.__doc__.strip().splitlines()[0])      # help(numpy.clip) imprime la documentación completa
+<<< "pure Python"
+>>> "Python puro"
+<<< "NumPy (vectorised)"
+>>> "NumPy (vectorizado)"
+<<< "Cython (typed)"
+>>> "Cython (tipado)"
+<<< "C via ctypes"
+>>> "C con ctypes"
+<<< print(f"{k:<22}{t:8.3f} s   result {v:.6f}")
+>>> print(f"{k:<22}{t:8.3f} s   resultado {v:.6f}")
+<<< numba_version(10)                                   # first call compiles; not timed
+>>> numba_version(10)                                   # la primera llamada compila; no se mide
+<<< print(f"Numba {timings['Numba (JIT)'][0]:.3f} s, result {timings['Numba (JIT)'][1]:.6f}")
+>>> print(f"Numba {timings['Numba (JIT)'][0]:.3f} s, resultado {timings['Numba (JIT)'][1]:.6f}")
+<<< print(f"Cython {timings['Cython (typed)'][0]:.3f} s, result {timings['Cython (typed)'][1]:.6f}")
+>>> print(f"Cython {timings['Cython (tipado)'][0]:.3f} s, resultado {timings['Cython (tipado)'][1]:.6f}")
+<<< print(f"C {timings['C via ctypes'][0]:.3f} s, result {timings['C via ctypes'][1]:.6f}")
+>>> print(f"C {timings['C con ctypes'][0]:.3f} s, resultado {timings['C con ctypes'][1]:.6f}")
+<<< print("no C compiler found: install gcc (Linux), Xcode command line tools (macOS) or Build Tools (Windows)")
+>>> print("no se encontró un compilador de C: instala gcc (Linux), las herramientas de línea de órdenes de Xcode (macOS) o Build Tools (Windows)")
+<<< plt.gca().invert_yaxis(); plt.xscale("log"); plt.xlabel("speed-up over pure Python (log scale)")
+>>> plt.gca().invert_yaxis(); plt.xscale("log"); plt.xlabel("aceleración frente a Python puro (escala logarítmica)")
+<<< # build an sdist (source archive) and a wheel; --no-isolation reuses this environment's setuptools (works offline)
+>>> # construir un sdist (archivo fuente) y un wheel; --no-isolation reutiliza el setuptools de este entorno (funciona sin conexión)
+<<< print("inside the wheel:", [n for n in zipfile.ZipFile(wheel).namelist()])
+>>> print("dentro del wheel:", [n for n in zipfile.ZipFile(wheel).namelist()])
+<<< print("""# .github/workflows/publish.yml: publish when a GitHub release is created
+>>> print("""# .github/workflows/publish.yml: publicar al crear una release en GitHub
+<<< id-token: write          # trusted publishing: no stored password or token
+>>> id-token: write          # trusted publishing: sin contraseña ni token guardados
+<<< print("compatible release ~=1.4.2 means >=1.4.2,<1.5:", Version("1.4.9") in SpecifierSet("~=1.4.2"))
+>>> print("versión compatible ~=1.4.2 significa >=1.4.2,<1.5:", Version("1.4.9") in SpecifierSet("~=1.4.2"))
+<<< warnings.warn(f"{func.__name__}() is deprecated and will be removed in {removed_in}; "
+>>> warnings.warn(f"{func.__name__}() está obsoleta y se eliminará en la versión {removed_in}; "
+<<< f"use {new_name}() instead", DeprecationWarning, stacklevel=2)
+>>> f"usa {new_name}() en su lugar", DeprecationWarning, stacklevel=2)
+<<< def arithmetic_mean(values, *, skipna: bool = False):        # new API (new keyword-only option)
+>>> def arithmetic_mean(values, *, skipna: bool = False):        # API nueva (opción nueva solo por nombre)
+<<< def average(values):                                           # old name keeps working for now
+>>> def average(values):                                           # el nombre antiguo sigue funcionando por ahora

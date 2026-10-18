@@ -1,0 +1,99 @@
+@@ file 10_economia.ipynb
+
+@@ md 2517a10e4d
+# 10 · Economía y econometría
+
+Los economistas usan Python para contrastar teorías con datos y para hacer previsiones. **statsmodels** ofrece
+las herramientas econométricas (regresión con errores estándar adecuados, modelos de series temporales,
+contrastes estadísticos) sobre pandas. Este módulo trabaja con cincuenta años de datos macroeconómicos de
+Estados Unidos.
+
+**Aprenderás**
+1. Convertir niveles en tasas de crecimiento y manejar fechas trimestrales
+2. Contrastar una ley económica con una regresión: la ley de Okun (producción y desempleo)
+3. Leer una regresión con honestidad: coeficientes, intervalos de confianza, errores estándar robustos, revisión de residuos
+4. Prever el crecimiento del PIB con un modelo ARIMA y compararlo con previsiones ingenuas mediante un backtest adecuado
+
+@@ md 144911dbd1
+## 1. Los datos
+`macrodata` viene con statsmodels: series trimestrales de Estados Unidos de 1959 a 2009, que incluyen el PIB
+real, la tasa de desempleo, la inflación y los tipos de interés.
+
+@@ md 19118735c8
+## 2. La ley de Okun
+Arthur Okun observó en 1962 que, cuando la producción crece más rápido que su ritmo normal, el desempleo baja.
+En forma de regresión: $\Delta u_t = \alpha + \beta\, g_t + \varepsilon_t$, donde $g_t$ es el crecimiento del
+PIB. La "regla práctica" de Okun espera un $\beta$ de entre $-0.3$ y $-0.5$ (por año), y $-\alpha/\beta$ es la
+tasa de crecimiento que mantiene estable el desempleo.
+
+@@ md eedb763461
+La relación es fuerte y el signo es exactamente el que predice la teoría. Los residuos están autocorrelacionados
+(el desempleo se ajusta a lo largo de varios trimestres), y por eso los errores estándar de arriba son HAC
+(consistentes con heterocedasticidad y autocorrelación): los errores ordinarios exagerarían la precisión.
+
+**¿Es estable la ley en el tiempo?** Una comprobación rápida: estimarla en cada década por separado.
+
+@@ md 8bd94648e1
+## 3. Prever el crecimiento del PIB
+Un modelo ARIMA predice una serie a partir de su propio pasado. Para saber si sirve, lo comparamos con dos
+previsiones ingenuas en un **backtest con origen móvil**: en cada trimestre a partir de 1990 se ajusta solo con
+el pasado, se prevé el trimestre siguiente y se avanza.
+
+@@ md 50177329d9
+**Leerlo con honestidad.** ARIMA supera a "repetir el último trimestre", pero solo mejora ligeramente a la media
+histórica: el crecimiento trimestral del PIB es casi impredecible a partir de su propio pasado. La previsión
+posterior a 2009 vuelve a la media en pocos trimestres y el intervalo es amplio. La previsión macroeconómica
+seria añade otra información (encuestas, mercados financieros, indicadores adelantados), que es justo para lo
+que sirven los modelos multivariantes como los VAR y los modelos de factores dinámicos de statsmodels.
+
+## Bibliotecas que conviene conocer
+| Área | Bibliotecas |
+|---|---|
+| econometría, series temporales | statsmodels, linearmodels (datos de panel, variables instrumentales), arch (volatilidad) |
+| previsión | statsmodels, sktime, Darts, Prophet |
+| inferencia causal | DoWhy, EconML, DoubleML |
+| datos económicos | pandas-datareader, fredapi (datos de la Reserva Federal), wbgapi (Banco Mundial), sdmx1 (oficinas estadísticas) |
+| finanzas cuantitativas | QuantLib, PyPortfolioOpt, vectorbt |
+
+## Ejercicios
+1. Estima una curva de Phillips: regresa el cambio de la inflación sobre la tasa de desempleo. ¿Es estable entre décadas?
+2. Añade el crecimiento del PIB retardado a la regresión de Okun (`df["gdp_growth"].shift(1)`). ¿Mejora el R²?
+3. Amplía el backtest a previsiones a cuatro trimestres vista. ¿Sigue ARIMA superando a la media?
+
+@@ code
+<<< "gdp_growth": 400 * np.log(raw["realgdp"]).diff(),     # annualised % growth (log difference)
+>>> "gdp_growth": 400 * np.log(raw["realgdp"]).diff(),     # crecimiento anualizado en % (diferencia logarítmica)
+<<< "d_unemp": raw["unemp"].diff(),                        # change in the unemployment rate, points
+>>> "d_unemp": raw["unemp"].diff(),                        # cambio de la tasa de desempleo, en puntos
+<<< ax[0].set_ylabel("GDP growth, % ann.")
+>>> ax[0].set_ylabel("crecimiento del PIB, % anual")
+<<< ax[1].set_ylabel("unemployment, %")
+>>> ax[1].set_ylabel("desempleo, %")
+<<< okun = sm.OLS(df["d_unemp"], X).fit(cov_type="HAC", cov_kwds={"maxlags": 4})   # robust to autocorrelation
+>>> okun = sm.OLS(df["d_unemp"], X).fit(cov_type="HAC", cov_kwds={"maxlags": 4})   # robusto a la autocorrelación
+<<< print(f"\nR² = {okun.rsquared:.2f}. Each extra point of annualised growth lowers unemployment by "
+>>> print(f"\nR² = {okun.rsquared:.2f}. Cada punto adicional de crecimiento anualizado reduce el desempleo en "
+<<< f"{-beta:.3f} points per quarter (~{-4 * beta:.2f} per year).")
+>>> f"{-beta:.3f} puntos por trimestre (~{-4 * beta:.2f} al año).")
+<<< print(f"Growth needed just to keep unemployment stable: {-alpha / beta:.1f}% a year.")
+>>> print(f"Crecimiento necesario solo para mantener estable el desempleo: {-alpha / beta:.1f}% al año.")
+<<< ax[0].set_xlabel("GDP growth, % ann."); ax[0].set_ylabel("change in unemployment")
+>>> ax[0].set_xlabel("crecimiento del PIB, % anual"); ax[0].set_ylabel("cambio del desempleo")
+<<< ax[0].set_title("Okun's law, 1959-2009")
+>>> ax[0].set_title("Ley de Okun, 1959-2009")
+<<< ax[1].set_title("residual autocorrelation")
+>>> ax[1].set_title("autocorrelación de los residuos")
+<<< "historical mean"
+>>> "media histórica"
+<<< "last value"
+>>> "último valor"
+<<< print(f"{len(actual)} one-quarter-ahead forecasts, 1990-2009")
+>>> print(f"{len(actual)} previsiones a un trimestre vista, 1990-2009")
+<<< label="GDP growth")
+>>> label="crecimiento del PIB")
+<<< label="ARIMA forecast")
+>>> label="previsión ARIMA")
+<<< label="80% interval")
+>>> label="intervalo del 80%")
+<<< plt.title("Two-year forecast after the 2008-09 recession")
+>>> plt.title("Previsión a dos años tras la recesión de 2008-09")

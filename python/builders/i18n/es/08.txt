@@ -1,0 +1,125 @@
+@@ file 08_ciencias_de_la_vida.ipynb
+
+@@ md 6cc3c0935b
+# 08 · Ciencias de la vida: biología y medicina
+
+Python es el lenguaje principal de la biología computacional y de la ciencia de datos médica. Este módulo usa
+tres bibliotecas maduras en problemas realistas: **Biopython** para secuencias y evolución, **lifelines** para
+el análisis de supervivencia de un ensayo clínico real y **scikit-learn** para un modelo de diagnóstico.
+
+> Son ejemplos docentes, no consejo médico ni herramientas clínicas validadas.
+
+**Aprenderás**
+1. Secuencias de ADN y de proteínas: transcripción, traducción, contenido de GC, marcos de lectura
+2. Simular la evolución y recuperarla con alineamiento de secuencias
+3. Construir un árbol genealógico (filogenia) a partir de distancias entre secuencias
+4. Análisis de supervivencia: curvas de Kaplan-Meier, la prueba log-rank y la regresión de Cox en un ensayo de cáncer de mama
+5. Un clasificador de diagnóstico: validación cruzada, curvas ROC y elegir un umbral según la sensibilidad
+
+@@ md cb6eda45ea
+## 1. Secuencias con Biopython
+Un gen es una secuencia de ADN; la célula lo copia a ARN (*transcripción*) y lee el ARN de tres en tres letras
+(*codones*) para construir una proteína (*traducción*). Diseñamos un gen para una proteína corta y lo pasamos
+por todo el proceso.
+
+@@ md f480129b7a
+## 2. Simular la evolución y recuperarla por alineamiento
+A partir de un gen ancestral, dejamos que cinco especies diverjan: cada linaje acumula mutaciones puntuales y
+algunas inserciones o deleciones. Después pedimos al `PairwiseAligner` de Biopython que vuelva a alinear las
+secuencias.
+
+@@ md 7bfc2494c5
+## 3. Un árbol genealógico a partir de distancias
+La fracción de posiciones distintas en cada pareja alineada da una matriz de distancias; el método de unión de
+vecinos (neighbour joining) la convierte en un árbol. Si el método funciona, recupera la agrupación que usamos
+en la simulación: (A, B) juntas y (D, E) juntas, con C más cerca de D y E.
+
+@@ md 8b5de91edf
+## 4. Análisis de supervivencia en un ensayo real de cáncer de mama
+**GBSG2** (German Breast Cancer Study Group, 686 pacientes) siguió a mujeres después de la cirugía y registró
+el tiempo hasta que el cáncer reapareció (`time`, en días) o hasta que terminó el seguimiento sin recaída
+(`cens = 0`, una observación *censurada*). Ignorar la censura sesga cualquier media, y por eso el análisis de
+supervivencia tiene sus propios métodos.
+
+La pregunta del ensayo: **¿alarga la terapia hormonal (`horTh`) la supervivencia libre de recaída?**
+
+@@ md 78bd3aa575
+Las curvas se separan y la prueba log-rank indica que la diferencia difícilmente se debe al azar. Pero las
+pacientes tratadas y no tratadas pueden diferir en otras cosas (edad, tamaño del tumor, ganglios linfáticos).
+La **regresión de riesgos proporcionales de Cox** estima el efecto de la terapia ajustando por ellas; un
+cociente de riesgos (hazard ratio) menor que 1 significa menos riesgo de recaída.
+
+@@ md 98380ca2f7
+## 5. Un clasificador de diagnóstico
+El conjunto de datos de cáncer de mama de Wisconsin (incluido en scikit-learn) describe núcleos celulares de
+569 biopsias, cada una etiquetada como maligna o benigna. En el diagnóstico los dos errores no pesan igual: no
+detectar un tumor maligno (falso negativo) es mucho peor que una falsa alarma, así que elegimos el umbral de
+decisión pensando en la **sensibilidad**, no en la exactitud.
+
+@@ md 29d3867fa6
+## Bibliotecas que conviene conocer en este campo
+| Área | Bibliotecas |
+|---|---|
+| secuencias, archivos, bases de datos | Biopython, scikit-bio, pysam (alineamientos genómicos) |
+| célula única y ómicas | Scanpy, AnnData |
+| estructura de proteínas | Biopython PDB, MDAnalysis; las predicciones de AlphaFold se distribuyen como archivos que estas leen |
+| imagen médica | pydicom, SimpleITK, MONAI (aprendizaje profundo) |
+| supervivencia y estadística clínica | lifelines, scikit-survival, statsmodels |
+| epidemiología | epipy, modelos compartimentales con SciPy (`solve_ivp`) |
+
+## Ejercicios
+1. Aumenta el número de mutaciones de la simulación hasta que la unión de vecinos se equivoque de árbol. ¿Cuánta divergencia aguanta?
+2. Estratifica las curvas de Kaplan-Meier por grado del tumor (`tgrade`) en lugar de por terapia.
+3. Sustituye la regresión logística por gradient boosting en el modelo de diagnóstico. ¿Mejora el AUC y compensa la pérdida de interpretabilidad?
+
+@@ code
+<<< protein = "MALWMRLLPLLALLALWGPDPAAA"      # a signal-peptide-like stretch, 24 amino acids
+>>> protein = "MALWMRLLPLLALLALWGPDPAAA"      # un tramo tipo péptido señal, 24 aminoácidos
+<<< table = CodonTable.unambiguous_dna_by_id[1]   # the standard genetic code
+>>> table = CodonTable.unambiguous_dna_by_id[1]   # el código genético estándar
+<<< gene = Seq("".join(random.choice(codons_for[aa]) for aa in protein) + "TAA")   # back-translate + stop codon
+>>> gene = Seq("".join(random.choice(codons_for[aa]) for aa in protein) + "TAA")   # retrotraducir + codón de parada
+<<< print("DNA      :", gene)
+>>> print("ADN      :", gene)
+<<< print("RNA      :", gene.transcribe())
+>>> print("ARN      :", gene.transcribe())
+<<< print("protein  :", gene.translate(to_stop=True), "| matches design:", str(gene.translate(to_stop=True)) == protein)
+>>> print("proteína :", gene.translate(to_stop=True), "| coincide con el diseño:", str(gene.translate(to_stop=True)) == protein)
+<<< print("GC content:", round(gc_fraction(gene), 3), "| reverse complement:", gene.reverse_complement()[:24], "...")
+>>> print("contenido GC:", round(gc_fraction(gene), 3), "| complementaria inversa:", gene.reverse_complement()[:24], "...")
+<<< # the same protein can be written by many DNA sequences: the genetic code is redundant
+>>> # la misma proteína puede escribirse con muchas secuencias de ADN: el código genético es redundante
+<<< # finding open reading frames (ATG ... stop) in a stretch of DNA that hides our gene
+>>> # buscar marcos de lectura abiertos (ATG ... parada) en un tramo de ADN que esconde nuestro gen
+<<< print("ORFs of at least 20 aa:", [(f, s, p) for f, s, p in orfs])
+>>> print("ORF de al menos 20 aa:", [(f, s, p) for f, s, p in orfs])
+<<< # a tree we choose: ((A,B),(C,(D,E))) with different branch lengths
+>>> # un árbol que elegimos: ((A,B),(C,(D,E))) con ramas de distinta longitud
+<<< print(f"score {best.score:.0f}")
+>>> print(f"puntuación {best.score:.0f}")
+<<< Phylo.draw(tree, axes=ax, do_show=False); ax.set_title("Neighbour-joining tree"); plt.tight_layout(); plt.show()
+>>> Phylo.draw(tree, axes=ax, do_show=False); ax.set_title("Árbol por unión de vecinos"); plt.tight_layout(); plt.show()
+<<< print(gb.shape); print(gb["horTh"].value_counts().to_dict(), "| events (recurrence):", int(gb["cens"].sum()))
+>>> print(gb.shape); print(gb["horTh"].value_counts().to_dict(), "| eventos (recaídas):", int(gb["cens"].sum()))
+<<< KaplanMeierFitter(label=f"hormonal therapy: {group}").fit(d["time"] / 365.25, d["cens"]).plot_survival_function(ax=ax)
+>>> KaplanMeierFitter(label=f"terapia hormonal: {group}").fit(d["time"] / 365.25, d["cens"]).plot_survival_function(ax=ax)
+<<< ax.set_xlabel("years after surgery"); ax.set_ylabel("recurrence-free probability"); ax.set_title("Kaplan-Meier estimate")
+>>> ax.set_xlabel("años tras la cirugía"); ax.set_ylabel("probabilidad sin recaída"); ax.set_title("Estimación de Kaplan-Meier")
+<<< print(f"log-rank test p-value: {test.p_value:.4f}")
+>>> print(f"valor p de la prueba log-rank: {test.p_value:.4f}")
+<<< cph.plot(hazard_ratios=True, ax=ax); ax.set_title("Hazard ratios (95% CI)"); plt.tight_layout(); plt.show()
+>>> cph.plot(hazard_ratios=True, ax=ax); ax.set_title("Cocientes de riesgos (IC 95%)"); plt.tight_layout(); plt.show()
+<<< print(f"Adjusted for the other factors, hormonal therapy multiplies the risk of recurrence by {hr:.2f} "
+>>> print(f"Ajustando por los demás factores, la terapia hormonal multiplica el riesgo de recaída por {hr:.2f} "
+<<< f"(about {100 * (1 - hr):.0f}% lower). More positive lymph nodes and a higher tumour grade raise it.")
+>>> f"(alrededor de un {100 * (1 - hr):.0f}% menos). Más ganglios positivos y un grado tumoral mayor lo aumentan.")
+<<< y = (data.target == 0).astype(int)                  # 1 = malignant
+>>> y = (data.target == 0).astype(int)                  # 1 = maligno
+<<< print(f"cross-validated ROC AUC: {roc_auc_score(y, proba):.3f}")
+>>> print(f"AUC ROC con validación cruzada: {roc_auc_score(y, proba):.3f}")
+<<< print(f"threshold {thr[i]:.3f}: sensitivity {tp / (tp + fn):.3f}, specificity {tn / (tn + fp):.3f}, "
+>>> print(f"umbral {thr[i]:.3f}: sensibilidad {tp / (tp + fn):.3f}, especificidad {tn / (tn + fp):.3f}, "
+<<< f"missed malignancies {fn}, false alarms {fp}")
+>>> f"malignos no detectados {fn}, falsas alarmas {fp}")
+<<< plt.xlabel("1 - specificity"); plt.ylabel("sensitivity"); plt.title("ROC curve (5-fold cross-validated)"); plt.tight_layout(); plt.show()
+>>> plt.xlabel("1 - especificidad"); plt.ylabel("sensibilidad"); plt.title("Curva ROC (validación cruzada de 5 particiones)"); plt.tight_layout(); plt.show()

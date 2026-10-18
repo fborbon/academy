@@ -230,5 +230,7 @@ img { max-width: 100%; height: auto; }
 /* Python 1001: code card in the hero instead of the animated network */
 .hero-code { margin: 0; padding: 1.4rem 1.5rem; border-radius: 16px; background: #0f172a; color: #e2e8f0;
   font: 500 .95rem/1.6 "JetBrains Mono", monospace; box-shadow: 0 20px 50px rgba(15, 23, 42, .25); overflow-x: auto; }
+.hero-art, .hero-text { min-width: 0; }   /* grid items: let the code card scroll instead of widening the page */
+.hero-code { max-width: 100%; }
 .hero-code .k { color: #c084fc; } .hero-code .s { color: #86efac; } .hero-code .c { color: #94a3b8; font-style: italic; }
 @media (max-width: 800px) { .hero-code { font-size: .8rem; } }

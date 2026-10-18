@@ -1,0 +1,325 @@
+@@ file 12_prevision_de_series_temporales.ipynb
+
+@@ md c9a5e7da6a
+# 12 · Previsión de series temporales
+
+Prever es predecir el futuro de una magnitud que se mide a lo largo del tiempo: la demanda eléctrica, las
+ventas, el caudal de un río, el tráfico. No existe un único método mejor. Este notebook aplica siete técnicas,
+desde una referencia de una línea hasta un Transformer, a **dos problemas elegidos para tener ganadores
+opuestos**, y explica por qué cada una gana donde gana.
+
+Ejecutar todos los modelos lleva unos 25 minutos en la CPU de un portátil (las redes neuronales se llevan la
+mayor parte); los resultados guardados de abajo se pueden leer sin ejecutar nada.
+
+**Aprenderás**
+1. Las familias de métodos de previsión y cómo evaluarlos sin engañarte
+2. Ingenuo estacional, SARIMA, Prophet, gradient boosting (XGBoost), una GRU en PyTorch, una LSTM en Keras y un Transformer, aplicados al mismo problema
+3. **Ejemplo 1, demanda de bicicletas compartidas**: datos tabulares con variables conocidas y potentes, donde gana el gradient boosting
+4. **Ejemplo 2, caudal de un río por la lluvia**: estado oculto y respuestas largas y suaves, donde ganan las redes neuronales recurrentes
+5. Una guía de decisión para proyectos reales
+
+@@ md e1c844b582
+## 1. El panorama
+
+| Familia | Ejemplos | Aprende de | Destaca cuando |
+|---|---|---|---|
+| Referencias ingenuas | último valor, **ingenuo estacional** | nada | siempre es lo primero que hay que superar |
+| Estadística clásica | ARIMA, **SARIMA**, ETS | el propio pasado de una serie | series cortas, estables y únicas; intervalos de incertidumbre |
+| Descomponibles | **Prophet** | tendencia + estacionalidades + festivos + regresores | series de negocio con efectos de calendario claros, analistas que necesitan componentes interpretables |
+| Aprendizaje automático sobre variables | **XGBoost**, LightGBM, bosques aleatorios | una tabla de variables construidas (retardos, calendario, covariables) | problemas tabulares con variables informativas y datos moderados; la mayoría de las competiciones |
+| Redes recurrentes | **GRU**, **LSTM** | secuencias en bruto | memoria larga, estado oculto, muchas series relacionadas |
+| Atención | **Transformers** (TFT, PatchTST, Informer) | secuencias en bruto, todas las posiciones a la vez (a menudo agrupadas en parches) | contextos largos, muchos datos |
+| Modelos fundacionales | Chronos, TimesFM, Moirai | preentrenados con millones de series | previsiones sin entrenamiento previo (zero-shot) |
+
+**Evaluar previsiones con honestidad**
+- Divide por **tiempo**, nunca al azar: entrena con el pasado y prueba con el futuro.
+- Usa **orígenes móviles**: prevé desde muchos puntos del periodo de prueba, como se usaría el modelo.
+- Toda variable debe ser **conocida en el momento de prever**: la demanda de ayer sí, la demanda real de mañana
+  no. El tiempo meteorológico del día siguiente viene de una previsión meteorológica; aquí usamos el tiempo
+  observado en su lugar, una práctica habitual y ligeramente optimista para todos los modelos por igual.
+- Informa siempre de una **referencia**: un modelo sofisticado que no supera al ingenuo estacional no sirve.
+
+@@ md 6a279a506c
+## 2. Ejemplo 1: demanda horaria de bicicletas compartidas
+Dos años (2011-2012) de alquileres por hora de Capital Bikeshare, en Washington D.C., con el tiempo
+meteorológico y el calendario: el conjunto *Bike Sharing* de UCI (Fanaee-T y Gama, 2013, licencia CC BY 4.0),
+desde OpenML. La copia de OpenML no tiene la columna de fecha; las filas están en orden temporal, así que las
+marcas de tiempo se reconstruyen a partir del año, el mes, el día de la semana y la hora, y se rellenan 165
+horas que faltan (sin alquileres registrados).
+
+**Tarea:** cada medianoche, prever los 24 recuentos horarios del día siguiente. Se entrena de enero de 2011 a
+septiembre de 2012 y se prueba con los 92 días de octubre a diciembre de 2012.
+
+@@ md ec77ec7c58
+Los datos tienen todo lo que facilita prever con variables: dos patrones diarios fuertes (picos de ida y vuelta
+al trabajo en días laborables, una joroba a mediodía en fines de semana), crecimiento de 2011 a 2012 y una
+fuerte dependencia del tiempo. Modelamos `log(1 + count)` para que los errores de madrugada y de hora punta
+cuenten en proporción, y puntuamos las previsiones en bicicletas por hora.
+
+@@ md c1789b21ed
+### 2.1 Ingenuo estacional
+Mañana a las 8:00 se parecerá al mismo día de la semana pasada a las 8:00. Una línea, sin ajuste.
+
+@@ md 7c0e50561c
+### 2.2 SARIMA (statsmodels)
+Un ARIMA estacional con una estación de 24 horas y el tiempo meteorológico como regresores externos (SARIMAX).
+Ajustarlo con dos años de datos horarios es lento, así que se ajusta con las últimas ocho semanas antes del
+periodo de prueba; cada medianoche se actualiza con el día real que acaba de terminar (sin reajustar) y prevé
+las 24 horas siguientes.
+
+@@ md 5277678b3c
+### 2.3 Prophet
+Prophet, de Meta, modela una serie como tendencia + estacionalidad anual, semanal y diaria + regresores, y se
+ajusta una sola vez. No mira los valores de los últimos días, así que no puede reaccionar a una sorpresa
+reciente, pero sus componentes son fáciles de explicar a personas no especialistas.
+
+@@ md 94b0e7b93a
+### 2.4 Gradient boosting (XGBoost)
+Convertir la previsión en una tabla: una fila por hora, con variables de calendario, el tiempo meteorológico y
+**retardos conocidos a medianoche**: la misma hora de ayer (24 h), de hace dos días (48 h) y de la semana pasada
+(168 h), y la media de ayer. Un solo modelo prevé directamente cada hora del día.
+
+@@ md 9032246fe5
+### 2.5 Redes neuronales: GRU (PyTorch), LSTM (Keras), Transformer (PyTorch)
+Los modelos de secuencias reciben el historial en bruto en lugar de retardos hechos a mano: los últimos **7 días**
+(168 horas) de demanda, tiempo y calendario, más el tiempo y el calendario de las **24 horas a prever**, y
+devuelven los 24 valores a la vez. El entrenamiento usa como origen de previsión una de cada tres horas del
+periodo de entrenamiento (unos 5.000 ejemplos); las cuatro últimas semanas de entrenamiento se reservan para
+detenerlo en la mejor época.
+
+@@ md 4127d19a72
+### 2.6 Resultados
+
+@@ md 30c74c76c2
+### Por qué gana aquí el gradient boosting
+**XGBoost tiene el menor error** (unas 45 bicicletas por hora frente a 76 del ingenuo estacional) y se entrena en
+segundos. La GRU se queda cerca, a pocos puntos porcentuales, tras minutos de entrenamiento; la LSTM y el
+Transformer quedan algo más atrás. SARIMA y Prophet lo hacen peor que la referencia de una línea: la estructura
+lineal de SARIMA, ajustada con las semanas recientes, no puede representar el cambio entre el patrón laborable y
+el de fin de semana ni el efecto no lineal del tiempo, y Prophet nunca mira los últimos días, así que no puede
+ajustarse al nivel actual de demanda.
+
+Lo que convierte esto en un problema de gradient boosting:
+1. **La información está en unas pocas variables fuertes y conocidas.** La hora, el día laborable y el tiempo
+   deciden la mayor parte de la demanda, y todas se conocen al hacer la previsión. Un modelo que traduce
+   variables en demanda no necesita más memoria del pasado que unos pocos retardos.
+2. **Interacciones bruscas.** "Hora punta, pero solo en días laborables" y "la lluvia hunde la demanda" son
+   exactamente las divisiones si-entonces de las que están hechos los árboles; una red neuronal tiene que
+   aproximarlas con funciones suaves.
+3. **Pocos datos.** 21 meses de una sola ciudad son unas 5.000 ventanas de entrenamiento: de sobra para los
+   árboles, modesto para redes con decenas de miles de pesos.
+4. **Entradas mezcladas.** Las categorías, los indicadores binarios y los valores continuos de escalas distintas
+   no necesitan escalado ni embeddings en los árboles.
+5. **Coste y claridad.** Segundos en lugar de minutos, y un gráfico de importancia de variables que explica el modelo.
+
+Las redes no fueron inútiles: a partir de la semana de historial en bruto redescubrieron la mayor parte de la
+estructura que los retardos le daban gratis a XGBoost. Con muchos más datos (muchas ciudades, muchos años) esa
+ventaja crece.
+
+@@ md 37a6e0792e
+## 3. Ejemplo 2: el caudal de un río impulsado por la lluvia
+Los hidrólogos prevén el caudal de los ríos para avisar de inundaciones. El caudal en una estación de aforo
+depende de la lluvia caída en la cuenca, pero no de forma sencilla: la lluvia primero empapa el suelo, y solo un
+suelo húmedo produce escorrentía; después el agua llega al río en horas o días por caminos lentos y rápidos, con
+un retardo y una forma propios de cada cuenca. La humedad del suelo es un **estado oculto** que nunca se mide
+directamente.
+
+Simulamos **24 cuencas** con un modelo conceptual estándar (un depósito de suelo con un umbral de escorrentía no
+lineal, depósitos rápido y lento y un retardo de tránsito propio de cada cuenca), cada una con sus parámetros
+desconocidos, así que el comportamiento real se conoce y no hay problemas de licencias. En grandes conjuntos de
+datos reales de este tipo (por ejemplo CAMELS, 671 cuencas de Estados Unidos) las LSTM han superado tanto a los
+modelos hidrológicos conceptuales como a los conjuntos de árboles, y este ejemplo lo reproduce en miniatura.
+
+**Tarea:** en cada origen de previsión, con las últimas 72 horas de lluvia y caudal y la **previsión de lluvia de
+las 48 horas siguientes**, predecir el caudal de esas 48 horas. Un solo modelo para todas las cuencas, sin decirle
+qué cuenca está viendo: tiene que reconocer el comportamiento de la cuenca a partir del historial.
+
+@@ md 2c55e327b2
+### 3.1 Simular las cuencas
+
+@@ md 3d3de1a5b0
+Fíjate en lo distinto que responden las dos cuencas a tormentas parecidas: el tamaño de la respuesta depende de lo
+húmedo que ya estaba el suelo, y el retardo y la forma de la crecida dependen de la cuenca.
+
+@@ md c3c8a74568
+El ingenuo estacional, SARIMA y Prophet se dejan fuera a propósito: el caudal de un río no tiene un ciclo diario
+o semanal fiable, y su motor (la lluvia) actúa a través de una respuesta no lineal y dependiente del estado que
+esos modelos no pueden expresar. La persistencia es la referencia honesta.
+
+### 3.2 Gradient boosting con las mejores variables que podemos darle
+La misma receta que ganó el ejemplo 1: una tabla con el caudal y la lluvia recientes, los totales de la ventana y
+la lluvia prevista para cada una de las 48 horas siguientes con su total acumulado. Un solo modelo para todos los
+horizontes, con el horizonte como variable.
+
+@@ md 7f6cb948a4
+### 3.3 Redes recurrentes: GRU (PyTorch) y LSTM (Keras) codificador-decodificador
+Un **codificador** lee las 72 horas pasadas de lluvia y caudal; su estado oculto final es la estimación propia de
+la red sobre el estado de la cuenca (lo húmeda que está, lo rápido que responde). Después un **decodificador**
+recorre las 48 horas de previsión, leyendo la lluvia prevista hora a hora y actualizando ese estado, tal como el
+agua se mueve por la cuenca. No se construye ninguna variable a mano.
+
+@@ md 624db6dc4a
+### 3.4 Resultados
+
+@@ md ada721495a
+### Por qué ganan aquí las redes recurrentes
+**La GRU reduce el error en torno a un 40% respecto a XGBoost**, y en un margen parecido en el 5% de caudales más
+altos, las crecidas para las que existe un servicio de alerta. La LSTM le sigue de cerca. El gráfico de error por
+horizonte muestra dónde: la diferencia se abre desde la primera hora y crece hasta unas 12 horas vista, a medida
+que la previsión depende cada vez más de cómo convierte la cuenca la lluvia futura en caudal, y después se
+mantiene más o menos constante.
+
+Cada tormenta es distinta, y la ventana más lluviosa del año (gráfico de la derecha) es un caso difícil para
+ambos: XGBoost sube el caudal antes de que haya caído la lluvia, mientras que la GRU acierta aproximadamente el
+momento de la subida pero sobrestima el pico. Lo que decide entre modelos son las medias sobre las 8.700
+previsiones de arriba; las tormentas individuales son donde se busca qué mejorar.
+
+Lo que convierte esto en un problema de redes neuronales:
+1. **Un estado oculto.** El caudal depende de lo húmedo que está el suelo, que nunca se mide y resume semanas de
+   historia. El estado oculto final del codificador es una estimación aprendida de esa condición; un árbol solo ve
+   las columnas fijas que se le dan.
+2. **Una respuesta suave y repetida.** Cada hora de lluvia prevista añade un pulso de caudal retardado y propio de
+   la cuenca. El decodificador aplica la misma regla de actualización hora tras hora (los mismos pesos en cada
+   paso), así que aprende la respuesta una sola vez; un árbol tiene que aprender divisiones distintas para cada
+   combinación de hora de lluvia y horizonte.
+3. **Un comportamiento que hay que inferir.** Al modelo no se le dice qué cuenca ve. El estado recurrente lleva a la
+   previsión lo que infirió del historial (rápida o lenta, con retardo o inmediata).
+4. **Suficientes datos compartidos.** 24 cuencas entrenan un solo modelo, así que los patrones aprendidos en una
+   ayudan a las demás.
+
+La comparación es justa con XGBoost, pero no exhaustiva: un hidrólogo construiría una variable de humedad del
+suelo (un índice de precipitación antecedente) y reduciría la diferencia; el ejercicio 2 mide cuánto. La red
+aprende esa variable por sí sola, y esa es la ventaja real cuando no se sabe de antemano qué variables hacen falta.
+
+@@ md 3f0050ec29
+## 4. Una guía de decisión
+
+| Tu problema se parece a... | Empieza con | Después prueba |
+|---|---|---|
+| una o pocas series, estacionalidad estable, pocos años de datos | ingenuo estacional, ETS/SARIMA | Prophet si necesitas componentes explicables y festivos |
+| una tabla de factores potentes conocidos al prever (calendario, tiempo, precios, promociones) | **gradient boosting** (XGBoost, LightGBM) con retardos | una mezcla de boosting y un modelo lineal |
+| muchas series relacionadas (miles de productos, sensores, cuencas) | un modelo global de gradient boosting | una RNN o un Transformer globales |
+| estado oculto, memoria larga, respuestas suaves a entradas repartidas en el tiempo (hidrología, fisiología, almacenamiento de energía) | **redes recurrentes** (GRU/LSTM codificador-decodificador) | Transformers, o variables con base física para el boosting |
+| historiales muy largos, muchos datos, alta frecuencia | Transformers (PatchTST, TFT) | modelos fundacionales (Chronos, TimesFM) como referencia sin entrenamiento |
+| pocos datos y poco tiempo | ingenuo estacional, después un modelo fundacional sin entrenamiento | |
+
+Elijas lo que elijas: divide por tiempo, compara con una referencia ingenua, mira los errores por horizonte y en los
+sucesos que importan (picos, horas punta) y prefiere el modelo más sencillo que sea claramente mejor.
+
+## Ejercicios
+1. En el ejemplo 1, quita las columnas del tiempo meteorológico de XGBoost. ¿Cuánto empeora y cierra una red neuronal la diferencia?
+2. En el ejemplo 2, añade un *índice de precipitación antecedente* (una suma de la lluvia pasada con pesos que decaen exponencialmente, el indicador que usan los hidrólogos para la humedad del suelo) a la tabla de XGBoost. ¿Cuánta diferencia con la GRU cierra una sola variable bien elegida?
+3. Entrena la GRU del ejemplo 2 con solo 6 cuencas y pruébala con las otras 18. ¿Sigue superando a XGBoost en cuencas que nunca ha visto?
+4. Usa `pip install chronos-forecasting` para añadir un modelo fundacional sin entrenamiento al ejemplo 1.
+
+@@ code
+<<< # rebuilt dates match the weekdays
+>>> # las fechas reconstruidas coinciden con los días de la semana
+<<< title="daily rentals"
+>>> title="alquileres diarios"
+<<< label="working day" if wd else "weekend / holiday")
+>>> label="día laborable" if wd else "fin de semana / festivo")
+<<< ax[1].legend(); ax[1].set_title("average by hour of day")
+>>> ax[1].legend(); ax[1].set_title("media por hora del día")
+<<< ax[2].set_xlabel("temperature (normalised)"); ax[2].set_title("rentals vs temperature")
+>>> ax[2].set_xlabel("temperatura (normalizada)"); ax[2].set_title("alquileres frente a temperatura")
+<<< "MAE (bikes/h)"
+>>> "MAE (bicis/h)"
+<<< "RMSE (bikes/h)"
+>>> "RMSE (bicis/h)"
+<<< 'MAE (bikes/h)'
+>>> 'MAE (bicis/h)'
+<<< 'RMSE (bikes/h)'
+>>> 'RMSE (bicis/h)'
+<<< print(f"{len(test_days)} test days, {len(y_true):,} hours")
+>>> print(f"{len(test_days)} días de prueba, {len(y_true):,} horas")
+<<< "Seasonal naive (7 d)"
+>>> "Ingenuo estacional (7 d)"
+<<< # ends at the forecast's midnight at the latest
+>>> # termina como muy tarde en la medianoche de la previsión
+<<< print("train", Xtr.shape, "validation", Xva.shape, "test", Xte.shape)
+>>> print("entrenamiento", Xtr.shape, "validación", Xva.shape, "prueba", Xte.shape)
+<<< '''Encoder GRU reads the past week; a small network combines its final state with the next day's covariates.'''
+>>> '''La GRU codificadora lee la semana pasada; una red pequeña combina su estado final con las covariables del día siguiente.'''
+<<< print(f"   stopped after {ep} epochs")
+>>> print(f"   detenido tras {ep} épocas")
+<<< print(f"   stopped after {len(hist_k.history['loss'])} epochs")
+>>> print(f"   detenido tras {len(hist_k.history['loss'])} épocas")
+<<< '''PatchTST-style: the week is cut into 7 patches of 24 hours, each patch becomes one token, and
+>>> '''Al estilo de PatchTST: la semana se corta en 7 parches de 24 horas, cada parche se convierte en un token, y
+<<< self-attention relates every day of the week to every other. 7 tokens instead of 168 makes attention
+>>> la autoatención relaciona cada día de la semana con todos los demás. 7 tokens en lugar de 168 abaratan mucho
+<<< far cheaper, which is how modern forecasting Transformers handle long inputs.'''
+>>> la atención, y así manejan las entradas largas los Transformers de previsión modernos.'''
+<<< # learned position per day
+>>> # posición aprendida por día
+<<< # (batch, 7 days, 24 h x features)
+>>> # (lote, 7 días, 24 h x variables)
+<<< label="actual")
+>>> label="real")
+<<< plt.title("First test week: day-ahead forecasts"); plt.ylabel("bikes per hour")
+>>> plt.title("Primera semana de prueba: previsiones a un día"); plt.ylabel("bicicletas por hora")
+<<< title="XGBoost: what drives the forecast (gain)"
+>>> title="XGBoost: qué impulsa la previsión (ganancia)"
+<<< # two years per catchment: year 1 to train, year 2 to test
+>>> # dos años por cuenca: el año 1 para entrenar, el año 2 para probar
+<<< # storms: random starts, more in winter
+>>> # tormentas: comienzos aleatorios, más en invierno
+<<< # evaporation, higher in summer
+>>> # evaporación, mayor en verano
+<<< # wet soil -> more of the rain runs off
+>>> # suelo húmedo -> más lluvia se convierte en escorrentía
+<<< # fast surface path, slow groundwater path
+>>> # camino superficial rápido, camino subterráneo lento
+<<< # routing delay, unique per catchment
+>>> # retardo de tránsito, propio de cada cuenca
+<<< # 3% measurement noise
+>>> # 3% de ruido de medida
+<<< print(f"simulated {len(catchments)} catchments x {HOURS:,} hours in {time.perf_counter() - t0:.0f} s")
+>>> print(f"simuladas {len(catchments)} cuencas x {HOURS:,} horas en {time.perf_counter() - t0:.0f} s")
+<<< label="rain")
+>>> label="lluvia")
+<<< label="river flow")
+>>> label="caudal del río")
+<<< ax.set_ylabel("rain"); ax2.set_ylabel("flow"); ax.set_title(f"catchment {c}: similar storms, different responses")
+>>> ax.set_ylabel("lluvia"); ax2.set_ylabel("caudal"); ax.set_title(f"cuenca {c}: tormentas parecidas, respuestas distintas")
+<<< # training, last month held out
+>>> # entrenamiento, se reserva el último mes
+<<< # validation for early stopping
+>>> # validación para la parada temprana
+<<< # one forecast a day in year 2
+>>> # una previsión al día en el año 2
+<<< print("train", Xtr2.shape, "validation", Xva2.shape, "test", Xte2.shape)
+>>> print("entrenamiento", Xtr2.shape, "validación", Xva2.shape, "prueba", Xte2.shape)
+<<< "peak-hour MAE"
+>>> "MAE caudales altos"
+<<< 'peak-hour MAE'
+>>> 'MAE caudales altos'
+<<< top-5% flows MAE
+>>> MAE 5% caudales más altos
+<<< "Persistence (last flow)"
+>>> "Persistencia (último caudal)"
+<<< "XGBoost (engineered features)"
+>>> "XGBoost (variables construidas)"
+<<< "GRU encoder-decoder (PyTorch)"
+>>> "GRU codificador-decodificador (PyTorch)"
+<<< "LSTM encoder-decoder (Keras)"
+>>> "LSTM codificador-decodificador (Keras)"
+<<< # the learned "state of the catchment"
+>>> # el "estado de la cuenca" aprendido
+<<< # carried forward through the forecast rain
+>>> # llevado hacia delante a través de la lluvia prevista
+<<< print(f"   {ep + 1} epochs")
+>>> print(f"   {ep + 1} épocas")
+<<< print(f"   {len(h2.history['loss'])} epochs")
+>>> print(f"   {len(h2.history['loss'])} épocas")
+<<< ax[0].set_xlabel("hours ahead"); ax[0].set_ylabel("MAE"); ax[0].set_title("error by lead time"); ax[0].legend(fontsize=7)
+>>> ax[0].set_xlabel("horas vista"); ax[0].set_ylabel("MAE"); ax[0].set_title("error por horizonte"); ax[0].legend(fontsize=7)
+<<< # the forecast window with the most rain
+>>> # la ventana de previsión con más lluvia
+<<< label="forecast rain (scaled)")
+>>> label="lluvia prevista (escalada)")
+<<< label="actual flow")
+>>> label="caudal real")
+<<< ax[1].set_title("the wettest forecast window of the test year"); ax[1].legend(fontsize=7)
+>>> ax[1].set_title("la ventana de previsión más lluviosa del año de prueba"); ax[1].legend(fontsize=7)

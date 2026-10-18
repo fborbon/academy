@@ -1,0 +1,184 @@
+@@ file 01_estructuras_de_datos.ipynb
+
+@@ md c440e30a01
+# 01 · Estructuras de datos en Python
+
+Los bloques con los que se construye cualquier programa en Python: las cuatro colecciones básicas, los
+contenedores especializados de la biblioteca estándar, las funciones, un primer vistazo a las clases, las
+comprensiones y el manejo de errores. Cada ejemplo es corto y ejecutable; modifícalo y vuelve a ejecutarlo.
+
+**Aprenderás**
+1. Listas, tuplas, diccionarios y conjuntos, y cuándo usar cada uno
+2. El módulo `collections`: `deque`, `Counter`, `defaultdict`, `namedtuple`
+3. Funciones: argumentos por defecto, `*args`, `**kwargs`, lambdas
+4. Clases en cinco minutos (el módulo 05 profundiza mucho más)
+5. Comprensiones y generadores
+6. Excepciones
+7. Por qué importa la estructura elegida: medir la velocidad de búsqueda
+
+@@ md 64e5320214
+## 1. Listas
+Ordenadas, **mutables** y admiten duplicados. El contenedor por defecto para "una secuencia de cosas".
+
+@@ md d091073ac8
+## 2. Tuplas
+Ordenadas e **inmutables**. Úsalas para grupos fijos de valores (un punto, una fila de una base de datos) y
+para devolver varios valores desde una función. Al ser inmutables, pueden ser claves de un diccionario o
+elementos de un conjunto.
+
+@@ md 2e8b233cdc
+## 3. Diccionarios
+Pares clave-valor, mutables y ordenados por inserción desde Python 3.7. Buscar por clave es rápido, sea cual
+sea el tamaño del diccionario.
+
+@@ md 9a2fe96ee9
+## 4. Conjuntos
+Sin orden, mutables y con elementos **únicos**. Ideales para comprobar pertenencia y eliminar duplicados.
+
+@@ md f99748f43b
+## 5. Contenedores especializados: `collections`
+La biblioteca estándar trae estructuras listas para patrones comunes. Usarlas acorta el código y a menudo
+lo hace más rápido.
+
+| Estructura | Úsala para |
+|---|---|
+| `deque` | colas y ventanas deslizantes: añadir y quitar rápido por **ambos** extremos |
+| `Counter` | contar cosas |
+| `defaultdict` | agrupar sin comprobaciones del tipo "si la clave no está en el diccionario" |
+| `namedtuple` | registros ligeros con campos con nombre |
+| `heapq` (módulo) | obtener siempre el elemento más pequeño: colas de prioridad, los k mejores |
+
+@@ md baf49cf6dd
+## 6. Funciones
+Bloques de código reutilizables. Las anotaciones de tipo documentan qué entra y qué sale; Python no las
+comprueba al ejecutar, pero los editores y herramientas como `mypy` sí las usan.
+
+@@ md cdbcc3e810
+**Una trampa clásica: argumentos por defecto mutables.** El valor por defecto se crea una sola vez, al
+definir la función, no en cada llamada.
+
+@@ md f6c928f21e
+## 7. Clases en cinco minutos
+Una clase es un plano, un objeto es una instancia de ella y los métodos son funciones que pertenecen a la
+clase. El módulo 05 trata la programación orientada a objetos a fondo; esto es lo justo para leer código que
+la usa.
+
+@@ md d4dacebf4c
+## 8. Comprensiones y generadores
+Las comprensiones construyen una colección en una línea legible. Un **generador** produce los valores bajo
+demanda, uno a uno, así que apenas usa memoria aunque sean millones de elementos. La idea reaparece en el
+módulo 03.
+
+@@ md 65f573466b
+## 9. Excepciones
+Gestiona los errores que esperas y deja que los inesperados salgan a la luz. `else` solo se ejecuta si nada
+falló; `finally` se ejecuta siempre (limpieza).
+
+@@ md 4710d295fa
+## 10. Por qué importa la estructura elegida
+Comprobar si un elemento está **en** una lista la recorre elemento a elemento (el tiempo crece con el tamaño,
+O(n)). Un conjunto o un diccionario usa hashing y responde en aproximadamente el mismo tiempo sea cual sea
+su tamaño (O(1) en promedio). Medido:
+
+@@ md 03267ed3b6
+| Operación | list | tuple | dict | set |
+|---|---|---|---|---|
+| ordenado | sí | sí | sí (inserción) | no |
+| mutable | sí | no | sí | sí |
+| duplicados | sí | sí | claves únicas | no |
+| `x in c` | O(n) | O(n) | O(1) en claves | O(1) |
+| uso típico | secuencias | registros fijos | búsquedas por clave | pertenencia, deduplicar |
+
+## Ejercicios
+1. Dada una lista de palabras, devuelve las cinco más frecuentes con su recuento (una línea con `Counter`).
+2. Agrupa una lista de tuplas `(alumno, nota)` en un diccionario `nota -> [alumnos]` con `defaultdict`.
+3. Escribe un generador `fibonacci()` que produzca la sucesión indefinidamente e imprime los 15 primeros valores con `itertools.islice`.
+4. Repite el experimento de tiempos con un `dict` y una `tuple`. ¿Cuál se comporta como una lista y cuál como un conjunto?
+
+@@ code
+<<< fruits.append("date")             # add at the end
+>>> fruits.append("date")             # añadir al final
+<<< fruits.insert(1, "apricot")       # add at a position
+>>> fruits.insert(1, "apricot")       # añadir en una posición
+<<< fruits.remove("banana")           # remove the first matching value
+>>> fruits.remove("banana")           # quitar el primer valor que coincida
+<<< last = fruits.pop()               # remove and return the last item
+>>> last = fruits.pop()               # quitar y devolver el último elemento
+<<< print(fruits, "| popped:", last)
+>>> print(fruits, "| extraído:", last)
+<<< # slicing: [start:stop:step], stop is excluded
+>>> # rebanadas: [inicio:fin:paso], el fin no se incluye
+<<< # sorting: sorted() returns a new list, .sort() sorts in place
+>>> # ordenar: sorted() devuelve una lista nueva, .sort() ordena en el sitio
+<<< single = ("only_one",)            # the trailing comma makes it a tuple
+>>> single = ("only_one",)            # la coma final la convierte en tupla
+<<< x, y = point                      # unpacking
+>>> x, y = point                      # desempaquetado
+<<< return min(values), max(values)   # returns a tuple
+>>> return min(values), max(values)   # devuelve una tupla
+<<< first, *middle, last = [1, 2, 3, 4, 5]   # extended unpacking
+>>> first, *middle, last = [1, 2, 3, 4, 5]   # desempaquetado extendido
+<<< person["age"] = 31                       # update
+>>> person["age"] = 31                       # actualizar
+<<< person["email"] = "alice@example.com"    # add
+>>> person["email"] = "alice@example.com"    # añadir
+<<< print(person.get("phone", "n/a"))        # safe access with a default
+>>> print(person.get("phone", "n/d"))        # acceso seguro con valor por defecto
+<<< # merging and dict comprehensions
+>>> # combinar diccionarios y comprensiones de diccionario
+<<< merged = defaults | person               # right-hand side wins (Python 3.9+)
+>>> merged = defaults | person               # gana el de la derecha (Python 3.9+)
+<<< print(a | b, a & b, a - b, a ^ b)        # union, intersection, difference, symmetric difference
+>>> print(a | b, a & b, a - b, a ^ b)        # unión, intersección, diferencia, diferencia simétrica
+<<< print(sorted(set(nums)))                 # dedup (sets do not keep order, so sort if you need one)
+>>> print(sorted(set(nums)))                 # deduplicar (los conjuntos no guardan orden: ordena si lo necesitas)
+<<< print(3 in a, frozenset(a))              # frozenset: immutable set, usable as a dict key
+>>> print(3 in a, frozenset(a))              # frozenset: conjunto inmutable, sirve como clave de diccionario
+<<< window = deque(maxlen=3)                 # keeps only the last 3 items
+>>> window = deque(maxlen=3)                 # guarda solo los 3 últimos elementos
+<<< print("last 3 readings:", list(window), "mean:", sum(window) / len(window))
+>>> print("últimas 3 lecturas:", list(window), "media:", sum(window) / len(window))
+<<< def total(*args: float) -> float:          # any number of positional arguments
+>>> def total(*args: float) -> float:          # cualquier número de argumentos posicionales
+<<< def describe(**kwargs) -> str:             # any number of keyword arguments
+>>> def describe(**kwargs) -> str:             # cualquier número de argumentos con nombre
+<<< square = lambda n: n ** 2                   # small anonymous function
+>>> square = lambda n: n ** 2                   # pequeña función anónima
+<<< print(add_item_bad("a"), add_item_bad("b"))     # the same list is reused: ['a', 'b'] twice
+>>> print(add_item_bad("a"), add_item_bad("b"))     # se reutiliza la misma lista: ['a', 'b'] dos veces
+<<< species = "Canis familiaris"            # class attribute: shared by every dog
+>>> species = "Canis familiaris"            # atributo de clase: compartido por todos los perros
+<<< self.name = name                    # instance attributes: one per dog
+>>> self.name = name                    # atributos de instancia: uno por perro
+<<< return f"{self.name} says woof"
+>>> return f"{self.name} dice guau"
+<<< def __repr__(self) -> str:              # how the object prints
+>>> def __repr__(self) -> str:              # cómo se imprime el objeto
+<<< print(f"list: {sys.getsizeof(big_list) / 1e6:.1f} MB, generator: {sys.getsizeof(big_gen)} bytes")
+>>> print(f"lista: {sys.getsizeof(big_list) / 1e6:.1f} MB, generador: {sys.getsizeof(big_gen)} bytes")
+<<< print("sum from the generator:", sum(big_gen))
+>>> print("suma desde el generador:", sum(big_gen))
+<<< yield n          # 'yield' makes this function a generator
+>>> yield n          # 'yield' convierte esta función en un generador
+<<< print("cannot divide by zero")
+>>> print("no se puede dividir entre cero")
+<<< print("bad input:", e)
+>>> print("entrada no válida:", e)
+<<< print(f"divide({a!r}, {b!r}) finished")
+>>> print(f"divide({a!r}, {b!r}) terminado")
+<<< '''A custom exception makes the failure explicit for the caller.'''
+>>> '''Una excepción propia deja explícito el fallo a quien llama.'''
+<<< raise InsufficientFunds("balance 10, requested 50")
+>>> raise InsufficientFunds("saldo 10, solicitado 50")
+<<< print("caught:", e)
+>>> print("capturada:", e)
+<<< target = n - 1                          # worst case for the list: the last element
+>>> target = n - 1                          # peor caso para la lista: el último elemento
+<<< print(f"n={n:>9,}  list: {a:10.1f} µs   set: {b:6.2f} µs")
+>>> print(f"n={n:>9,}  lista: {a:10.1f} µs   conjunto: {b:6.2f} µs")
+<<< plt.loglog(sizes, t_list, "o-", label="list (O(n))")
+>>> plt.loglog(sizes, t_list, "o-", label="lista (O(n))")
+<<< plt.loglog(sizes, t_set, "s-", label="set (O(1))")
+>>> plt.loglog(sizes, t_set, "s-", label="conjunto (O(1))")
+<<< plt.xlabel("number of items"); plt.ylabel("time per lookup (µs)"); plt.legend(); plt.title("Membership test")
+>>> plt.xlabel("número de elementos"); plt.ylabel("tiempo por búsqueda (µs)"); plt.legend(); plt.title("Prueba de pertenencia")

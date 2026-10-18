@@ -1,0 +1,114 @@
+@@ file 11_frameworks_de_ia.ipynb
+
+@@ md 628cfabb41
+# 11 · Frameworks de IA: PyTorch y TensorFlow lado a lado
+
+Casi toda la investigación y producción de IA moderna se ejecuta sobre dos frameworks de Python: **PyTorch**
+(Meta, hoy la PyTorch Foundation) y **TensorFlow** con su API de alto nivel **Keras** (Google). Los dos hacen las
+mismas tres cosas: tensores en CPU o GPU, diferenciación automática y construir y entrenar redes neuronales.
+Este módulo resuelve un mismo problema con ambos, línea a línea, para que se vean las diferencias.
+
+> Nuestro curso gratuito *Redes Neuronales 1001* construye estas ideas desde cero; aquí el foco son los propios
+> frameworks.
+
+**Aprenderás**
+1. Tensores y diferenciación automática en cada framework
+2. El mismo modelo entrenado en ambos: el bucle explícito de PyTorch y el `fit` de Keras
+3. Comparar exactitud y velocidad de forma justa
+4. Guardar, cargar y exportar modelos
+5. Cómo elegir, y el resto del ecosistema (JAX, Hugging Face, ONNX)
+
+@@ md 1cade07792
+## 1. Tensores y gradientes
+Los dos frameworks registran las operaciones sobre tensores y pueden derivar a través de ellas. Comprobación: la
+derivada de $f(x) = x^3 + 2x$ en $x = 2$ es $3 \cdot 2^2 + 2 = 14$.
+
+@@ md a159d0487d
+## 2. La tarea
+Dígitos manuscritos (8×8 píxeles, 1.797 imágenes, incluidos en scikit-learn), divididos una sola vez para que
+ambos frameworks vean exactamente las mismas imágenes de entrenamiento y de prueba.
+
+@@ md 025948ef79
+## 3. PyTorch: definir un módulo y escribir el bucle
+PyTorch hace explícito el bucle de entrenamiento. Más código, pero cada paso es visible y fácil de adaptar, una
+de las razones por las que domina la investigación.
+
+@@ md a9bf62064e
+## 4. TensorFlow / Keras: declarar el modelo y llamar a `fit`
+La misma arquitectura. Keras oculta el bucle tras `compile` y `fit`, que es conciso y difícil de equivocar.
+(También se puede escribir un bucle propio con `GradientTape` cuando hace falta.)
+
+@@ md ee358ca692
+## 5. Compararlos
+Mismos datos, misma arquitectura, mismo optimizador y mismo número de parámetros. Las diferencias en la exactitud
+final vienen de la inicialización aleatoria y del barajado, no del framework.
+
+@@ md d529a085cc
+## 6. Guardar, cargar, exportar
+
+@@ md 8d971941f0
+Para el despliegue, los modelos suelen exportarse a un formato neutral u optimizado: **ONNX** (ambos frameworks,
+se ejecuta en cualquier sitio con ONNX Runtime), **TorchScript / torch.export** (PyTorch), **SavedModel** y
+**LiteRT** (antes TensorFlow Lite, para móviles y microcontroladores).
+
+## 7. Elegir
+| | PyTorch | TensorFlow / Keras |
+|---|---|---|
+| estilo | explícito, pythónico, ejecución inmediata por defecto | `fit` de alto nivel, compilación de grafos con `tf.function` |
+| donde más destaca | investigación, arquitecturas nuevas, la mayoría de los artículos nuevos y el trabajo con LLM | flujos de producción (TFX), móviles y dispositivos embebidos (LiteRT), TPU |
+| ecosistema | Hugging Face Transformers, PyTorch Lightning, torchvision | Keras, TensorFlow Serving, TF.js en el navegador |
+| nota | | Keras 3 también puede usar PyTorch o JAX como motor |
+
+El panorama más amplio: **JAX** (Google; API de NumPy con transformaciones componibles `grad`, `jit`, `vmap`,
+popular en investigación a gran escala), **Hugging Face** (modelos preentrenados y datasets para todos los
+frameworks), **scikit-learn** (aprendizaje automático clásico, a menudo el primer modelo adecuado), **ONNX
+Runtime** (inferencia rápida en cualquier sitio).
+
+## Ejercicios
+1. Escribe el entrenamiento del modelo de Keras con un bucle propio usando `tf.GradientTape`, imitando el bucle de PyTorch.
+2. Quita las capas convolucionales y usa solo capas densas. ¿Cuánta exactitud se pierde?
+3. Exporta el modelo de PyTorch a ONNX (`torch.onnx.export`) y ejecútalo con `onnxruntime`.
+
+@@ code
+<<< os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")       # quieter TensorFlow start-up
+>>> os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")       # arranque de TensorFlow más silencioso
+<<< f_pt.backward()                                            # PyTorch: gradients accumulate in .grad
+>>> f_pt.backward()                                            # PyTorch: los gradientes se acumulan en .grad
+<<< with tf.GradientTape() as tape:                             # TensorFlow: record inside a tape
+>>> with tf.GradientTape() as tape:                             # TensorFlow: se graba dentro de una "cinta"
+<<< X = (digits.images / 16.0).astype(np.float32)               # scale pixels to [0, 1]
+>>> X = (digits.images / 16.0).astype(np.float32)               # escalar los píxeles a [0, 1]
+<<< Xtr, ytr = torch.from_numpy(X_train[:, None]), torch.from_numpy(y_train)      # (N, 1, 8, 8): channels first
+>>> Xtr, ytr = torch.from_numpy(X_train[:, None]), torch.from_numpy(y_train)      # (N, 1, 8, 8): canales primero
+<<< optimizer.zero_grad()                 # 1. reset gradients
+>>> optimizer.zero_grad()                 # 1. poner a cero los gradientes
+<<< loss = loss_fn(pt_model(xb), yb)      # 2. forward pass
+>>> loss = loss_fn(pt_model(xb), yb)      # 2. pasada hacia delante
+<<< loss.backward()                       # 3. backpropagate
+>>> loss.backward()                       # 3. retropropagar
+<<< optimizer.step()                      # 4. update weights
+>>> optimizer.step()                      # 4. actualizar los pesos
+<<< print(f"PyTorch: test accuracy {pt_history[-1]:.3f} after {EPOCHS} epochs, {pt_time:.1f} s, "
+>>> print(f"PyTorch: exactitud en prueba {pt_history[-1]:.3f} tras {EPOCHS} épocas, {pt_time:.1f} s, "
+<<< f"{sum(p.numel() for p in pt_model.parameters()):,} parameters")
+>>> f"{sum(p.numel() for p in pt_model.parameters()):,} parámetros")
+<<< tf.keras.layers.Input(shape=(8, 8, 1)),                                   # channels last
+>>> tf.keras.layers.Input(shape=(8, 8, 1)),                                   # canales al final
+<<< print(f"TensorFlow: test accuracy {tf_history[-1]:.3f} after {EPOCHS} epochs, {tf_time:.1f} s, "
+>>> print(f"TensorFlow: exactitud en prueba {tf_history[-1]:.3f} tras {EPOCHS} épocas, {tf_time:.1f} s, "
+<<< f"{tf_model.count_params():,} parameters")
+>>> f"{tf_model.count_params():,} parámetros")
+<<< plt.xlabel("epoch"); plt.ylabel("test accuracy"); plt.ylim(0.8, 1.0); plt.legend(); plt.title("Same CNN, two frameworks")
+>>> plt.xlabel("época"); plt.ylabel("exactitud en prueba"); plt.ylim(0.8, 1.0); plt.legend(); plt.title("La misma CNN, dos frameworks")
+<<< print(f"the two models agree on {np.mean(p_pt == p_tf):.1%} of test images; "
+>>> print(f"los dos modelos coinciden en el {np.mean(p_pt == p_tf):.1%} de las imágenes de prueba; "
+<<< f"both wrong on the same image: {np.sum((p_pt != y_test) & (p_tf != y_test))}")
+>>> f"ambos fallan en la misma imagen: {np.sum((p_pt != y_test) & (p_tf != y_test))}")
+<<< torch.save(pt_model.state_dict(), os.path.join(d, "cnn.pt"))      # PyTorch: save the weights
+>>> torch.save(pt_model.state_dict(), os.path.join(d, "cnn.pt"))      # PyTorch: guardar los pesos
+<<< print("PyTorch reload identical:", torch.equal(restored(Xte).argmax(1), pt_model(Xte).argmax(1)))
+>>> print("PyTorch, recarga idéntica:", torch.equal(restored(Xte).argmax(1), pt_model(Xte).argmax(1)))
+<<< tf_model.save(os.path.join(d, "cnn.keras"))                         # Keras: architecture + weights in one file
+>>> tf_model.save(os.path.join(d, "cnn.keras"))                         # Keras: arquitectura + pesos en un solo archivo
+<<< print("Keras reload identical:", np.array_equal(reloaded.predict(X_test[..., None], verbose=0).argmax(1), p_tf))
+>>> print("Keras, recarga idéntica:", np.array_equal(reloaded.predict(X_test[..., None], verbose=0).argmax(1), p_tf))

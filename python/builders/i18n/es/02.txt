@@ -1,0 +1,97 @@
+@@ file 02_formatos_de_datos.ipynb
+
+@@ md 074bd4b7e5
+# 02 · Formatos de datos y pandas
+
+Los datos llegan como CSV, JSON, hojas de cálculo, bases de datos o archivos columnares, y el formato en el
+que los guardas decide cuánto ocupan, lo rápido que se cargan y qué puede salir mal. Este módulo presenta
+pandas, la herramienta estándar para tablas en Python, y después mide los formatos habituales con los mismos
+datos.
+
+**Aprenderás**
+1. El `DataFrame` de pandas: crear, inspeccionar, seleccionar, filtrar, agrupar
+2. Leer y escribir CSV, JSON, Excel, Parquet, Feather, SQLite, YAML y pickle
+3. Qué formato elegir, con mediciones: tamaño del archivo, tiempo de escritura y de lectura, tipos que se conservan
+4. Trampas: codificaciones, fechas, tipos perdidos en CSV y por qué nunca debes cargar un pickle que no sea de confianza
+
+@@ md d2e93b769c
+## 1. El DataFrame de pandas
+Una tabla bidimensional con etiquetas: las columnas tienen nombre y tipo, y las filas un índice.
+
+@@ md 074d973da3
+## 2. Un conjunto de datos realista para comparar formatos
+200.000 filas de lecturas de sensores sintéticas con los tipos de columna que tienen los datos reales:
+marcas de tiempo, enteros, decimales, categorías y texto libre.
+
+@@ md 58d327f776
+## 3. Escribir, leer y comparar
+Cada formato se escribe y se vuelve a leer tres veces, y comprobamos si los tipos de las columnas sobreviven
+al viaje de ida y vuelta.
+
+@@ md 169e21bfe4
+**Cómo leer el resultado.** Los formatos binarios columnares (Parquet, Feather) son los más pequeños y
+rápidos *y además* conservan los tipos: las marcas de tiempo siguen siendo marcas de tiempo y las categorías
+siguen siendo categorías. CSV y JSON pierden los tipos, así que `timestamp` vuelve como texto y `status` como
+cadenas normales, salvo que le digas al lector qué esperar:
+
+@@ md fb16f1444a
+## 4. Formatos pequeños de configuración e intercambio
+No todo es una tabla. La configuración vive en YAML, TOML o JSON; las API intercambian JSON.
+
+@@ md 5e0097e8ed
+## 5. Excel
+Habitual en entornos de empresa. Lento y frágil con los tipos comparado con Parquet, pero a veces es el
+formato que necesita quien va a leer los datos.
+
+@@ md fa77a24044
+## 6. Trampas que conviene conocer
+- **Codificaciones.** Los archivos de otros sistemas pueden no estar en UTF-8: `pd.read_csv(path, encoding="latin-1")`.
+- **Separadores decimales y de miles.** Los CSV europeos suelen usar `;` y `,`: `pd.read_csv(path, sep=";", decimal=",")`.
+- **Fechas.** `01/02/2025` significa días distintos en países distintos; prefiere ISO 8601 (`2025-02-01`).
+- **Cargar un pickle ejecuta código.** Está bien para tus propios objetos en caché, pero nunca cargues un
+  pickle de una fuente no fiable. La demostración de abajo ejecuta una orden solo con deserializarse:
+
+@@ md f17d734552
+## ¿Qué formato y cuándo?
+
+| Necesidad | Usa |
+|---|---|
+| Datos de análisis, cualquier cosa de más de unos pocos MB | **Parquet** (comprimido, tipado, columnar, legible por cualquier herramienta) |
+| Intercambio temporal rápido entre Python y R | Feather / Arrow IPC |
+| Legible por personas, pequeño, universal | CSV (con tipos explícitos al leer) |
+| Datos anidados, API web | JSON |
+| Configuración | YAML o TOML |
+| Muchos escritores, consultas, transacciones | una base de datos (SQLite en local, PostgreSQL en un servidor) |
+| Personas que viven en hojas de cálculo | Excel |
+| Guardar en caché tus propios objetos de Python | pickle (solo datos de confianza) |
+
+## Ejercicios
+1. Añade una columna `float32` y comprueba qué formatos mantienen `float32` tras el viaje de ida y vuelta.
+2. Escribe las lecturas en Parquet particionado por `status` (`partition_cols=["status"]`) y vuelve a leer solo las filas `fault`.
+3. Carga el CSV con `usecols=["timestamp", "temperature"]` y compara el tiempo con cargarlo todo.
+
+@@ code
+<<< print(df["name"].tolist())            # one column (a Series)
+>>> print(df["name"].tolist())            # una columna (una Series)
+<<< print(df.loc[0, "city"])               # by label
+>>> print(df.loc[0, "city"])               # por etiqueta
+<<< print(df.iloc[1].to_dict())            # by position
+>>> print(df.iloc[1].to_dict())            # por posición
+<<< df[(df["age"] > 26) & (df["city"] == "Berlin")]   # boolean filtering
+>>> df[(df["age"] > 26) & (df["city"] == "Berlin")]   # filtrado booleano
+<<< df["senior"] = df["age"] >= 30                     # new column
+>>> df["senior"] = df["age"] >= 30                     # columna nueva
+<<< print(f"in memory: {data.memory_usage(deep=True).sum() / 1e6:.1f} MB")
+>>> print(f"en memoria: {data.memory_usage(deep=True).sum() / 1e6:.1f} MB")
+<<< results["size_mb"].plot.barh(ax=ax[0], color="#4f46e5"); ax[0].set_xlabel("file size (MB)")
+>>> results["size_mb"].plot.barh(ax=ax[0], color="#4f46e5"); ax[0].set_xlabel("tamaño del archivo (MB)")
+<<< results["read_s"].plot.barh(ax=ax[1], color="#0ea5e9"); ax[1].set_xlabel("read time (s, best of 3)")
+>>> results["read_s"].plot.barh(ax=ax[1], color="#0ea5e9"); ax[1].set_xlabel("tiempo de lectura (s, mejor de 3)")
+<<< print(tomllib.loads(toml_text) == config)     # TOML: what pyproject.toml uses (module 07)
+>>> print(tomllib.loads(toml_text) == config)     # TOML: lo que usa pyproject.toml (módulo 07)
+<<< def __reduce__(self):                      # tells pickle how to "rebuild" the object
+>>> def __reduce__(self):                      # le dice a pickle cómo "reconstruir" el objeto
+<<< return (print, ("this ran during pickle.loads: it could have been any command",))
+>>> return (print, ("esto se ejecutó durante pickle.loads: podría haber sido cualquier orden",))
+<<< pickle.loads(payload)                           # prints: loading executed code
+>>> pickle.loads(payload)                           # imprime: cargarlo ejecutó código

@@ -373,7 +373,7 @@ parameters, so the true behaviour is known and no licensing issue arises. On lar
 kind (for example CAMELS, 671 US catchments) LSTMs have outperformed both conceptual hydrology models and
 tree ensembles, which is what this example reproduces in miniature.
 
-**Task:** at each forecast origin, given the last 96 hours of rain and flow and the **rain forecast for the
+**Task:** at each forecast origin, given the last 72 hours of rain and flow and the **rain forecast for the
 next 48 hours**, predict the flow for those 48 hours. One model for all catchments, without telling it
 which catchment it is looking at: it has to recognise the catchment's behaviour from the history.
 """)
