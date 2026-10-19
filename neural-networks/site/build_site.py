@@ -37,16 +37,20 @@ BASE = [
     dict(n="07", track=2, minutes=90, cpu="3 min"),
     dict(n="08", track=2, minutes=120, cpu="16 min"),
     dict(n="09", track=2, minutes=75, cpu="6 min"),
+    dict(n="10", track=3, minutes=150, cpu="35 min"),
 ]
+# modules published after the course launched: returning learners see them flagged as new
+ADDED_LATER = ["10"]
 
 LANGS = {
     "en": dict(
         dir="", nb_dir="", course="Neural Networks 1001", course_html="Neural Networks <b>1001</b>",
-        description="A free, hands-on course: from a single neuron to a GPT, in nine runnable notebooks that train on a laptop CPU.",
+        description="A free, hands-on course: from a single neuron to a GPT, in ten runnable notebooks that train on a laptop CPU, ending with a capstone on a real industrial inspection case.",
         switch_label="Español", switch_title="Leer el curso en español",
         tracks=[("Foundations", "How a network computes, learns and generalises."),
                 ("Classic architectures", "The inductive biases for images, time series and language."),
-                ("Modern deep learning", "Attention, GPT-style language models and modern vision tasks.")],
+                ("Modern deep learning", "Attention, GPT-style language models and modern vision tasks."),
+                ("Capstone", "Everything together on a real case, from the raw photos to a model you could put on a production line.")],
         modules=[
             ("01_the_neuron.ipynb", "01-the-neuron", "The Artificial Neuron",
              "Build a neuron in ten lines of NumPy, meet every activation function used in modern AI, and train it with gradient descent.",
@@ -75,26 +79,30 @@ LANGS = {
             ("09_vision_beyond_classification.ipynb", "09-vision-beyond-classification", "Vision Beyond Classification",
              "Segment every pixel with a U-Net, detect objects YOLO-style with non-maximum suppression, and recognise unseen classes with a triplet-loss embedding.",
              ["U-Net", "IoU", "YOLO", "NMS", "precision & recall", "triplet loss"]),
+            ("10_capstone_real_case.ipynb", "10-capstone-real-case", "Capstone on a Real Case: Visual Defect Inspection",
+             "Real photos of manufactured blades at the end of the line: build an inspection model the way a competition team would, from baseline to transfer learning, cross-validation, ensembling and a reject threshold.",
+             ["real images", "class imbalance", "transfer learning", "cross-validation", "ensembling & TTA", "operating threshold", "Grad-CAM"]),
         ],
         t=dict(
             nav_projects="Projects", toggle_theme="Toggle dark mode",
-            footer_data="Datasets are generated in the notebooks or ship with scikit-learn. Code and text: MIT licence.",
-            completed="✓ completed", minutes="~{m} min", runs="runs in {cpu} on a CPU", part="Part {n}",
+            footer_data="Datasets are generated in the notebooks or ship with scikit-learn, except the capstone's real inspection photos (Zhou, GKN Blade Surface Defect Dataset, Mendeley Data, CC BY 4.0). Code and text: MIT licence.",
+            completed="✓ completed", started="● in progress", new_badge="New", minutes="~{m} min", runs="runs in {cpu} on a CPU", part="Part {n}",
             module_of="Module {n} of {total}", download="⬇ Download notebook", colab="Open in Colab", github="View on GitHub",
             overview="← Course overview", modules_btn="Modules ▾", on_page="On this page", prev="← Previous", next="Next →",
             back="← Back to", finished="Finished? →", overview_short="Course overview", fig_alt="notebook output figure",
             js_mark="Mark module {n} as complete", js_done="✓ Module {n} completed (click to undo)",
             js_progress="{done} of {total} modules completed", js_none="Not started yet",
-            js_resume="Continue with module {n}: {title} →",
+            js_resume="Continue with module {n}: {title} →", js_resume_new="New since you started: module {n}, {title} →",
         ),
     ),
     "es": dict(
         dir="es", nb_dir="es", course="Redes Neuronales 1001", course_html="Redes Neuronales <b>1001</b>",
-        description="Un curso gratuito y práctico: de una sola neurona a un GPT, en nueve notebooks ejecutables que entrenan en la CPU de un equipo personal.",
+        description="Un curso gratuito y práctico: de una sola neurona a un GPT, en diez notebooks ejecutables que entrenan en la CPU de un equipo personal, con un proyecto final sobre un caso real de inspección industrial.",
         switch_label="English", switch_title="Read the course in English",
         tracks=[("Fundamentos", "Cómo calcula, aprende y generaliza una red."),
                 ("Arquitecturas clásicas", "Los sesgos inductivos para imágenes, series temporales y lenguaje."),
-                ("Aprendizaje profundo moderno", "Atención, modelos de lenguaje tipo GPT y tareas modernas de visión.")],
+                ("Aprendizaje profundo moderno", "Atención, modelos de lenguaje tipo GPT y tareas modernas de visión."),
+                ("Proyecto final", "Todo junto en un caso real, desde las fotos sin procesar hasta un modelo que podría ir a una línea de producción.")],
         modules=[
             ("01_la_neurona_artificial.ipynb", "01-la-neurona-artificial", "La neurona artificial",
              "Construye una neurona en diez líneas de NumPy, conoce todas las funciones de activación de la IA moderna y entrénala con descenso de gradiente.",
@@ -123,17 +131,20 @@ LANGS = {
             ("09_vision_mas_alla_de_la_clasificacion.ipynb", "09-vision-mas-alla-de-la-clasificacion", "Visión más allá de la clasificación",
              "Segmenta cada píxel con una U-Net, detecta objetos al estilo YOLO con supresión de no máximos y reconoce clases no vistas con un embedding de pérdida triplete.",
              ["U-Net", "IoU", "YOLO", "NMS", "precisión y exhaustividad", "pérdida triplete"]),
+            ("10_proyecto_final_caso_real.ipynb", "10-proyecto-final-caso-real", "Proyecto final con un caso real: inspección visual de defectos",
+             "Fotos reales de álabes fabricados al final de la línea: construye un modelo de inspección como lo haría un equipo de competición, desde la referencia hasta el aprendizaje por transferencia, la validación cruzada, el ensamblado y un umbral de rechazo.",
+             ["imágenes reales", "clases desbalanceadas", "transferencia", "validación cruzada", "ensamblado y TTA", "umbral de operación", "Grad-CAM"]),
         ],
         t=dict(
             nav_projects="Proyectos", toggle_theme="Cambiar a modo oscuro",
-            footer_data="Los datos se generan en los notebooks o vienen incluidos en scikit-learn. Código y texto: licencia MIT.",
-            completed="✓ completado", minutes="~{m} min", runs="se ejecuta en {cpu} en una CPU", part="Parte {n}",
+            footer_data="Los datos se generan en los notebooks o vienen incluidos en scikit-learn, salvo las fotos reales de inspección del proyecto final (Zhou, GKN Blade Surface Defect Dataset, Mendeley Data, CC BY 4.0). Código y texto: licencia MIT.",
+            completed="✓ completado", started="● en curso", new_badge="Nuevo", minutes="~{m} min", runs="se ejecuta en {cpu} en una CPU", part="Parte {n}",
             module_of="Módulo {n} de {total}", download="⬇ Descargar notebook", colab="Abrir en Colab", github="Ver en GitHub",
             overview="← Presentación del curso", modules_btn="Módulos ▾", on_page="En esta página", prev="← Anterior", next="Siguiente →",
             back="← Volver a la", finished="¿Terminaste? →", overview_short="Presentación del curso", fig_alt="figura generada por el notebook",
             js_mark="Marcar el módulo {n} como completado", js_done="✓ Módulo {n} completado (clic para deshacer)",
             js_progress="{done} de {total} módulos completados", js_none="Todavía sin empezar",
-            js_resume="Continúa con el módulo {n}: {title} →",
+            js_resume="Continúa con el módulo {n}: {title} →", js_resume_new="Nuevo desde que empezaste: módulo {n}, {title} →",
         ),
     ),
 }
@@ -188,7 +199,8 @@ def page(lang, title, description, body, prefix, assets, counterpart, switch_hre
         canonical=counterpart[lang], course_html=L["course_html"], nav_projects=L["t"]["nav_projects"],
         toggle_theme=L["t"]["toggle_theme"], footer_data=L["t"]["footer_data"],
         switch_href=switch_href, switch_label=L["switch_label"], switch_title=L["switch_title"], other_lang=other,
-        i18n_json=json.dumps(i18n, ensure_ascii=False),
+        i18n_json=json.dumps(i18n, ensure_ascii=False), modules_json=json.dumps([b["n"] for b in BASE]),
+        added_later_json=json.dumps(ADDED_LATER),
     )
 
 
@@ -229,7 +241,7 @@ def module_card(lang, m):
     chips = "".join(f"<li>{html.escape(x)}</li>" for x in m["topics"])
     return f"""
       <a class="module-card" href="{m['slug']}/" data-module="{m['n']}">
-        <div class="module-top"><span class="module-num">{m['n']}</span><span class="module-done" aria-hidden="true">{t['completed']}</span></div>
+        <div class="module-top"><span class="module-num">{m['n']}</span><span class="module-done" aria-hidden="true">{t['completed']}</span><span class="module-started" aria-hidden="true">{t['started']}</span><span class="module-new">{t['new_badge']}</span></div>
         <h3>{html.escape(m['title'])}</h3>
         <p>{html.escape(m['blurb'])}</p>
         <ul class="chips">{chips}</ul>
@@ -250,7 +262,6 @@ def build_index(lang):
     body = Template(read("index.html", lang)).substitute(
         tracks=tracks_html, n_modules=len(mods), hours=round(sum(m["minutes"] for m in mods) / 60), repo=REPO,
         repo_path=REPO_PATH + ("/es" if lang == "es" else ""), first=mods[0]["slug"],
-        modules_json=json.dumps([m["n"] for m in mods]),
     )
     assets = "../" if L["dir"] else ""
     return page(lang, L["course"], L["description"], body, "./", assets, {"en": url_of("en"), "es": url_of("es")},

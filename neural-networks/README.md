@@ -1,6 +1,6 @@
 # Neural Networks 1001: From One Neuron to GPT
 
-Nine hands-on Jupyter notebooks that build modern deep learning from first principles. Each one starts where the previous one stopped and ends with something that trains and runs on a laptop CPU, with no GPU, no API keys and no dataset downloads.
+Nine hands-on Jupyter notebooks that build modern deep learning from first principles, and a tenth that puts it all to work on a real industrial case. Each one starts where the previous one stopped and ends with something that trains and runs on a laptop CPU, with no GPU and no API keys. Notebooks 01 to 09 need no dataset downloads; the capstone downloads about 80 MB of openly licensed inspection photos and a 45 MB pre-trained network, once.
 
 **Course website:** [neural-networks.academy.forwardforecasting.eu](https://neural-networks.academy.forwardforecasting.eu/) renders every notebook with its saved outputs, a syllabus, progress tracking, and download / Open-in-Colab links.
 
@@ -35,6 +35,7 @@ Nine hands-on Jupyter notebooks that build modern deep learning from first princ
 | 07 | [`07_transformer.ipynb`](07_transformer.ipynb) | Every transformer component in NumPy, then a full encoder-decoder transformer in PyTorch that learns to sort | embeddings, positional encoding, scaled dot-product attention, masks, multi-head attention, the feed-forward MLP, residual stream, LayerNorm, attention rollout, gradient saliency | ~3 min |
 | 08 | [`08_gpt_from_scratch.ipynb`](08_gpt_from_scratch.ipynb) | A character-level GPT pre-trained on a multi-task text corpus that becomes a small "generalist" | BPE tokenisation, decoder-only architecture, next-token prediction, emergent per-task skills, temperature / top-k / top-p sampling, KV cache, fine-tuning vs training from scratch, catastrophic forgetting, scaling laws, from base model to assistant | ~16 min |
 | 09 | [`09_vision_beyond_classification.ipynb`](09_vision_beyond_classification.ipynb) | A U-Net segmenter, a YOLO-style detector and a triplet-loss embedding, on synthetic shape scenes and digits | transposed convolutions, skip connections, per-class IoU, grid-based detection, non-maximum suppression, precision and recall, metric learning, one-shot recognition of unseen classes | ~6 min |
+| 10 | [`10_capstone_real_case.ipynb`](10_capstone_real_case.ipynb) | **Capstone on a real case:** an end-of-line visual inspection model for real photos of manufactured blades (good / nick / scratch), worked like a competition entry | a written brief and fixed metric (macro-F1, escape and false-reject rates), a locked test set, 5-fold cross-validation, baselines, a CNN from scratch vs ImageNet transfer learning (frozen features, partial fine-tuning), ensembling and test-time augmentation, a cost-aware reject threshold, bootstrap confidence intervals, Grad-CAM, error analysis, deployment questions | ~35 min |
 
 Each notebook ends with key takeaways and exercises. The notebooks are saved **with their outputs**, so you can read them on GitHub, on the course website, or in any notebook viewer without running anything.
 
@@ -50,7 +51,13 @@ Each notebook ends with key takeaways and exercises. The notebooks are saved **w
     (generalisation)                (first attention)                       metric learning
 ```
 
-Notebook 09 depends only on 03 and 04, so it can be taken straight after Part 2.
+Notebook 09 depends only on 03 and 04, so it can be taken straight after Part 2. The capstone (Part 4, notebook 10) mainly uses 03, 04 and 09, and is best taken last.
+
+```
+ Part 4 · Capstone
+ 10 Real case: visual defect inspection on a production line
+    (baselines, transfer learning, cross-validation, ensembling, thresholds, Grad-CAM)
+```
 
 ## Data flow
 
@@ -65,6 +72,7 @@ flowchart LR
         D4[synthetic text corpora<br/>nb 06, 08]
         D5[random digit sequences<br/>nb 07]
         D6[synthetic shape scenes<br/>nb 09]
+        D7[real blade photos, CC BY 4.0<br/>downloaded once, nb 10]
     end
     Data --> T[Tokenise / normalise<br/>/ window / augment]
     T --> F[Forward pass<br/>model]
@@ -105,6 +113,7 @@ flowchart TB
 | **NumPy** | Notebooks 01, 02 and the first half of 07 | Every equation is visible as array maths: no framework magic while learning the fundamentals |
 | **PyTorch** (CPU build) | Notebooks 03 to 09, plus cross-checks in 01 and 02 | Automatic differentiation (`loss.backward()`), ready-made layers, and the same API used to train real large models |
 | **scikit-learn** | Bundled datasets (`load_digits`, `make_moons`, `load_sample_image`), train/test split, confusion matrix | Offline, small, well-known datasets |
+| **torchvision** + **Pillow** | Notebook 10 | An ImageNet-pre-trained ResNet-18 for transfer learning, and reading the inspection photos |
 | **Matplotlib** | All plots: activation curves, decision boundaries, feature maps, forecasts, embedding maps, attention heatmaps, masks and boxes | Standard, works everywhere, renders inline in the notebook |
 | **Jupyter** + **nbconvert** | The notebook format, and rendering the course website | Mixes explanation, maths (LaTeX), code and output in one document |
 
@@ -120,12 +129,14 @@ Key AI techniques, and where each one is introduced:
 - **Transformer blocks** (07): attention + feed-forward MLP + residual connections + LayerNorm.
 - **Language modelling** (08): next-token prediction on a mixed corpus, the objective that makes GPT a generalist.
 - **Dense prediction and metric learning** (09): U-Net segmentation, YOLO-style detection with NMS, triplet-loss embeddings.
-- **Interpretability** (04, 06, 07, 08): learned filters, embedding maps, attention maps, attention rollout, gradient saliency.
+- **Interpretability** (04, 06, 07, 08, 10): learned filters, embedding maps, attention maps, attention rollout, gradient saliency, Grad-CAM.
+- **A real project, end to end** (10): a fixed metric and a locked test set, cross-validation, transfer learning with partial fine-tuning, ensembling and test-time augmentation, a cost-aware decision threshold, bootstrap intervals on the test score, and a three-way ship / reject / human-review routing.
 
 ## Why these models and datasets
 
 - **Small on purpose.** Every model is sized to train on a laptop CPU in minutes while still showing the real behaviour (non-linear boundaries, learned filters, attention that reorders words, skills that appear at different points in training). The code is the same code you would scale up.
-- **No downloads.** Datasets are bundled with scikit-learn or generated from simple rules, so the notebooks work offline and give the same results each run (fixed seeds).
+- **No downloads in notebooks 01 to 09.** Datasets are bundled with scikit-learn or generated from simple rules, so those notebooks work offline and give the same results each run (fixed seeds).
+- **Real, openly licensed data for the capstone.** Notebook 10 uses the GKN Blade Surface Defect Dataset (Qianyu Zhou, Mendeley Data, 2023, doi:10.17632/3bh998k78g.1, CC BY 4.0): 400 real photos of finished blades, 203 good, 48 with nicks, 149 with scratches. It was picked because its licence allows reuse with credit (several better-known inspection datasets are non-commercial or no-derivatives), it is small enough for a CPU, and it has the difficulties of real inspection work: few labelled images, a rare class and tiny defects. The notebook downloads it from the original publication and checks every file's SHA-256 hash.
 - **Baselines included.** The forecaster is compared with a seasonal-naive baseline, the CNN with an MLP, the residual net with a plain net, transfer learning with training from scratch, the triplet embedding with raw pixels. A model is only as good as what it beats.
 - **Honest results.** When a technique does not help on these toy problems (beam search on an undertrained translator, a default-initialised LSTM's memory), the notebook says so and explains why, instead of tuning until the expected story appears.
 - **Synthetic grammars for language.** A word-embedding corpus with built-in gender, royalty, age and geography structure (plus a deliberately planted occupational bias), and an English to Spanish grammar with conjugation, gender agreement and adjective reordering. Both are small enough to learn in a minute and let us check results exactly.
@@ -137,11 +148,11 @@ Key AI techniques, and where each one is introduced:
 
 ```
 neural-networks/
-├── 01_ ... 09_*.ipynb      the course, saved with outputs
-├── es/                     the Spanish edition of the same nine notebooks, saved with outputs
+├── 01_ ... 10_*.ipynb      the course, saved with outputs (10 is the capstone)
+├── es/                     the Spanish edition of the same ten notebooks, saved with outputs
 ├── builders/               Python scripts that generate each notebook (source of truth for the text and code)
 │   ├── nbhelper.py         md() / code() / save() helpers, plus the translation layer
-│   ├── build_01.py ... build_09.py
+│   ├── build_01.py ... build_10.py
 │   ├── i18n/es/01.txt ...  Spanish translations, one file per notebook
 │   ├── rebuild.py          regenerate / execute / check notebooks without losing outputs
 │   └── i18n_skeleton.py    print a notebook's translatable cells, to write or update a translation
@@ -204,6 +215,8 @@ Run notebooks one at a time: several PyTorch kernels in parallel compete for the
 
 `site/build_site.py` renders the executed notebooks with nbconvert's `basic` template (it does **not** re-run them) and wraps them in a course layout: a landing page with the syllabus, one page per module with a module sidebar, an "on this page" table of contents, MathJax for the equations, a download link, an Open-in-Colab link, and progress tracking stored in the visitor's browser.
 
+Progress tracking keeps two lists in `localStorage`: the modules a learner marked complete (`nn1001-done`) and the modules they have opened (`nn1001-opened`), shown as "✓ completed" and "● in progress" on the syllabus and in the sidebar, with a "continue with module N" link. Module numbers and storage keys never change, so adding a module keeps everyone's progress. A third list (`nn1001-known`) records which modules existed when the learner first arrived, so any module published later is marked "New" for them until they open it, while newcomers see no badge. Learners from before that list existed are recognised by having progress without it; `ADDED_LATER` in `build_site.py` names the modules they had never seen (currently 10). Nothing leaves the browser: there are no accounts and no server-side progress data.
+
 ```mermaid
 flowchart LR
     A[push to main<br/>notebooks, builders or site/] --> K[GitHub Actions<br/>rebuild.py all --check]
@@ -229,13 +242,13 @@ Everything in the course runs locally on the CPU. There are **no paid APIs**: no
 | Item | Cost |
 |---|---|
 | LLM / AI API calls | none ($0) |
-| Compute to run the notebooks | your own machine, about 40 minutes to run all nine end to end on an 8-core laptop CPU (16 of them in notebook 08); the same again for the Spanish edition |
+| Compute to run the notebooks | your own machine, about 75 minutes to run all ten end to end on an 8-core laptop CPU (35 of them in the capstone, 16 in notebook 08); the same again for the Spanish edition |
 | Website hosting | static files on the existing web server that already hosts the other forwardforecasting.eu sites: no new instance, no extra AWS cost |
 | DNS | one extra A record in an existing Route 53 hosted zone (no extra charge; the zone's $0.50/month is already paid) |
 | TLS certificate | Let's Encrypt, free, renewed automatically |
 | CI | GitHub Actions, about 1 minute per deploy, within the free tier |
-| Bandwidth | about 7 MB per full read of the course in one language, mostly the notebook figures; negligible at the current traffic |
-| Disk | about 5.5 MB of notebooks per language (11 MB for English + Spanish) plus about 24 MB for the rendered bilingual site |
+| Bandwidth | about 10 MB per full read of the course in one language, mostly the notebook figures; negligible at the current traffic. Running the capstone downloads about 125 MB once (photos from Mendeley Data, ResNet-18 weights from the PyTorch servers), free of charge |
+| Disk | about 8 MB of notebooks per language (16 MB for English + Spanish) plus about 35 MB for the rendered bilingual site; the capstone also caches about 80 MB of photos in ~/.cache/nn1001 and 45 MB of ResNet-18 weights in ~/.cache/torch |
 
 ## References
 
@@ -249,6 +262,8 @@ The notebooks are written from the original papers, not from any course material
 - Sutskever, Vinyals & Le, *Sequence to Sequence Learning* (2014) · Bahdanau, Cho & Bengio, *Neural Machine Translation by Jointly Learning to Align and Translate* (2014)
 - Vaswani et al., *Attention Is All You Need* (2017) · Radford et al., *Language Models are Unsupervised Multitask Learners* (2019)
 - Ronneberger, Fischer & Brox, *U-Net* (2015) · Redmon et al., *You Only Look Once* (2015) · Schroff, Kalenichenko & Philbin, *FaceNet* (2015)
+- Selvaraju et al., *Grad-CAM: Visual Explanations from Deep Networks via Gradient-based Localization* (2017) · Yosinski et al., *How transferable are features in deep neural networks?* (2014) · Efron & Tibshirani, *An Introduction to the Bootstrap* (1993)
+- Data for notebook 10: Zhou, Qianyu (2023), *GKN Blade Surface Defect Dataset*, Mendeley Data, V1, doi:10.17632/3bh998k78g.1, CC BY 4.0
 
 ## Contact
 

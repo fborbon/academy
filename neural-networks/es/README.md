@@ -1,6 +1,6 @@
 # Redes Neuronales 1001: de una neurona a GPT
 
-La edición en español del curso: nueve notebooks de Jupyter que construyen el aprendizaje profundo moderno desde los primeros principios. Cada uno empieza donde terminó el anterior y acaba con algo que entrena y se ejecuta en la CPU de un equipo personal, sin GPU, sin claves de API y sin descargar conjuntos de datos.
+La edición en español del curso: nueve notebooks de Jupyter que construyen el aprendizaje profundo moderno desde los primeros principios y un décimo, el proyecto final, que lo aplica todo a un caso industrial real. Cada uno empieza donde terminó el anterior y acaba con algo que entrena y se ejecuta en la CPU de un equipo personal, sin GPU y sin claves de API. Los notebooks 01 a 09 no descargan ningún conjunto de datos; el proyecto final descarga una vez unos 80 MB de fotos de inspección con licencia abierta (CC BY 4.0) y una red preentrenada de 45 MB.
 
 **Sitio web del curso:** [neural-networks.academy.forwardforecasting.eu/es/](https://neural-networks.academy.forwardforecasting.eu/es/) muestra cada notebook con sus resultados guardados, el temario, el seguimiento del progreso y enlaces para descargar o abrir en Colab.
 
@@ -15,6 +15,7 @@ La edición en español del curso: nueve notebooks de Jupyter que construyen el 
 | 07 | [`07_transformer.ipynb`](07_transformer.ipynb) | ~3 min |
 | 08 | [`08_gpt_desde_cero.ipynb`](08_gpt_desde_cero.ipynb) | ~16 min |
 | 09 | [`09_vision_mas_alla_de_la_clasificacion.ipynb`](09_vision_mas_alla_de_la_clasificacion.ipynb) | ~6 min |
+| 10 | [`10_proyecto_final_caso_real.ipynb`](10_proyecto_final_caso_real.ipynb): proyecto final con un caso real, inspección visual de defectos | ~35 min |
 
 ## Cómo empezar
 
@@ -32,7 +33,7 @@ Abre los notebooks en orden. Ejecútalos de uno en uno: varios núcleos de PyTor
 
 ## Sobre la traducción
 
-Estos notebooks se generan con los mismos scripts que la edición en inglés, y el código es idéntico: solo se traducen las explicaciones, los comentarios y las etiquetas de las gráficas, así que ambas ediciones producen los mismos resultados. Dos conjuntos de datos se quedan en inglés a propósito, y cada notebook explica por qué: el corpus de embeddings del notebook 06 y el corpus de entrenamiento del GPT del notebook 08. La documentación técnica completa (estructura del repositorio, despliegue y costes) está en el [README principal](../README.md), en inglés.
+Estos notebooks se generan con los mismos scripts que la edición en inglés, y el código es idéntico: solo se traducen las explicaciones, los comentarios y las etiquetas de las gráficas, así que ambas ediciones producen los mismos resultados. Dos conjuntos de datos se quedan en inglés a propósito, y cada notebook explica por qué: el corpus de embeddings del notebook 06 y el corpus de entrenamiento del GPT del notebook 08. En el proyecto final, los nombres de las clases (Good, Nick, Scratch) se mantienen en inglés porque son los nombres de las carpetas del conjunto de datos. La documentación técnica completa (estructura del repositorio, despliegue y costes) está en el [README principal](../README.md), en inglés.
 
 ## Contacto
 

@@ -1,6 +1,9 @@
 (function () {
-  var KEY = "nn1001-done";
-  var MODULES = ["01", "02", "03", "04", "05", "06", "07", "08", "09"];
+  // Progress lives only in this browser. The storage keys and module numbers never change, so
+  // learners keep what they completed when modules are added; MODULES comes from the build.
+  var KEY = "nn1001-done", OPENED_KEY = "nn1001-opened";
+  var MODULES = window.NN1001_MODULES || ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10"];
+  var ADDED_LATER = window.NN1001_ADDED_LATER || [];   // modules published after the course launched
   var T = window.NN1001_I18N || {};
   function fmt(key, vars, fallback) {
     var s = T[key] || fallback;
@@ -8,17 +11,42 @@
     return s;
   }
 
-  function load() {
-    try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch (e) { return []; }
+  function loadList(key) {
+    try {
+      var list = JSON.parse(localStorage.getItem(key) || "[]");
+      // ignore anything that is not a current module (old or hand-edited entries would skew the count)
+      return Array.isArray(list) ? list.filter(function (m, i) { return MODULES.indexOf(m) >= 0 && list.indexOf(m) === i; }) : [];
+    } catch (e) { return []; }
   }
-  function save(list) {
-    try { localStorage.setItem(KEY, JSON.stringify(list)); } catch (e) {}
+  function saveList(key, list) {
+    try { localStorage.setItem(key, JSON.stringify(list)); } catch (e) {}
+  }
+  function load() { return loadList(KEY); }
+  function save(list) { saveList(KEY, list); }
+
+  // a lesson page records that its module was opened, so the syllabus can show "in progress"
+  var lessonBtn = document.querySelector(".complete-btn");
+  // the modules that existed when this learner arrived; learners from before this list was kept
+  // (progress but no list) arrived before every module in ADDED_LATER was published
+  var KNOWN_KEY = "nn1001-known", known = loadList(KNOWN_KEY);
+  if (!known.length) {
+    var returning = load().length > 0 || loadList(OPENED_KEY).length > 0;
+    known = MODULES.filter(function (m) { return !returning || ADDED_LATER.indexOf(m) < 0; });
+    saveList(KNOWN_KEY, known);
+  }
+  if (lessonBtn) {
+    var opened = loadList(OPENED_KEY), here = lessonBtn.getAttribute("data-module");
+    if (opened.indexOf(here) < 0) { opened.push(here); saveList(OPENED_KEY, opened); }
   }
 
   function paint() {
-    var done = load();
+    var done = load(), opened = loadList(OPENED_KEY);
     document.querySelectorAll("[data-module]").forEach(function (el) {
-      el.classList.toggle("is-done", done.indexOf(el.getAttribute("data-module")) >= 0);
+      var n = el.getAttribute("data-module"), isDone = done.indexOf(n) >= 0;
+      el.classList.toggle("is-done", isDone);
+      el.classList.toggle("is-started", !isDone && opened.indexOf(n) >= 0);
+      // returning learners see a "new" marker on modules added since they started, until they open them
+      el.classList.toggle("is-new", known.indexOf(n) < 0 && opened.indexOf(n) < 0 && !isDone);
     });
     var share = done.length / MODULES.length;
     document.querySelectorAll(".progress-bar").forEach(function (b) { b.style.width = (share * 100).toFixed(0) + "%"; });
@@ -39,7 +67,9 @@
       if (card) {
         var link = resume.querySelector(".resume-link");
         link.href = card.getAttribute("href");
-        link.textContent = fmt("js_resume", { n: next, title: card.querySelector("h3").textContent }, "Continue with module {n}: {title} →");
+        var vars = { n: next, title: card.querySelector("h3").textContent };
+        link.textContent = card.classList.contains("is-new") ? fmt("js_resume_new", vars, "New since you started: module {n}, {title} →")
+                                                             : fmt("js_resume", vars, "Continue with module {n}: {title} →");
         resume.hidden = false;
       }
     }
