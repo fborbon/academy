@@ -74,6 +74,7 @@ img { max-width: 100%; height: auto; }
 .chips { list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .chips li { font-size: 12.5px; padding: 3px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); }
 .eyebrow { text-transform: uppercase; letter-spacing: .08em; font-size: 12.5px; font-weight: 600; color: var(--accent); margin: 0 0 10px; }
+.academy-back { margin-bottom: 22px; }
 
 /* landing */
 .landing { max-width: 1180px; margin: 0 auto; padding: 0 clamp(16px, 4vw, 40px); }

@@ -1,6 +1,6 @@
 @@ file 10_proyecto_final_caso_real.ipynb
 
-@@ md 010b84c4b7
+@@ md 59ab37a2c9
 # 10 · Proyecto final con un caso real: inspección visual de defectos
 
 Todos los notebooks anteriores usaban datos generados en el propio notebook o incluidos en una biblioteca, así que los resultados eran exactos y las ejecuciones, cortas. Este proyecto final usa **fotografías reales de una línea de producción real**, y se aborda como lo haría un equipo en una competición de ciencia de datos: un enunciado por escrito, una métrica fijada de antemano, un conjunto de prueba que permanece bloqueado hasta el final y una tabla de clasificación con cada intento.
@@ -16,6 +16,8 @@ Todos los notebooks anteriores usaban datos generados en el propio notebook o in
 Las clases conservan en el código sus nombres en inglés (Good, Nick, Scratch) porque son los nombres de las carpetas del conjunto de datos.
 
 Automatizar esta comprobación es uno de los trabajos de visión artificial más habituales en la industria: la cámara nunca se cansa, cada decisión queda registrada y el tiempo del inspector se dedica solo a los casos dudosos. La dificultad es la que aparece en casi todos los proyectos reales: **muy pocos datos etiquetados** (400 fotos, solo 48 de ellas con mellas), defectos que ocupan una fracción minúscula de la imagen y una estructura de costes en la que dejar pasar una pieza mala es mucho peor que rechazar una buena.
+
+**Los datos.** Las fotos son el *GKN Blade Surface Defect Dataset*, publicado por Qianyu Zhou (Universidad de Connecticut) en Mendeley Data en 2023, doi:[10.17632/3bh998k78g.1](https://doi.org/10.17632/3bh998k78g.1), con la licencia [Creative Commons Atribución 4.0 (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/deed.es), que permite reutilizarlas, también con fines comerciales, siempre que se cite la fuente. El notebook las descarga de esa publicación original, no de una copia (los detalles, en la sección 2).
 
 Lo que vas a hacer, y en qué notebook anterior se apoya cada paso:
 

@@ -1,0 +1,61 @@
+# Builds the Academy home page (the course catalogue) and publishes it.
+#
+# The static site is copied into the portfolio site repository under academy/home/; that
+# repository's GitHub Actions deploy publishes it to the web server (served at academy.forwardforecasting.eu).
+#
+# Required GitHub secret:
+#   GH_PAT: personal access token with write access to fborbon/forwardforecasting-landing
+
+name: Deploy Academy home page
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'home/**'
+      - 'neural-networks/site/build_site.py'   # course names, descriptions and module counts come from here
+      - 'python/site/build_site.py'
+      - '.github/workflows/deploy-academy-home.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-academy-home
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install site tooling
+        run: pip install --quiet "nbconvert>=7" "nbformat>=5" "pygments>=2.17"
+
+      - name: Build the home page (reads each course's site/build_site.py for its catalogue entry)
+        run: python home/build_site.py
+
+      - uses: actions/checkout@v4
+        with:
+          repository: fborbon/forwardforecasting-landing
+          token: ${{ secrets.GH_PAT }}
+          path: landing
+
+      - name: Copy site into the portfolio repository
+        run: |
+          mkdir -p landing/academy/home
+          rsync -a --delete home/dist/ landing/academy/home/
+
+      - name: Commit and push
+        run: |
+          cd landing
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add academy/home
+          git diff --cached --quiet && echo "No changes" && exit 0
+          git commit -m "sync: Academy home page from academy repo"
+          for i in 1 2 3; do git pull --rebase && git push && exit 0; sleep 5; done
+          exit 1

@@ -4,3 +4,4 @@ __pycache__/
 *.pt
 neural-networks/site/dist/
 python/site/dist/
+home/dist/
