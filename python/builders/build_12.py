@@ -4,19 +4,21 @@ md(r"""
 # 12 · Time Series Forecasting
 
 Forecasting is predicting the future of a quantity measured over time: electricity demand, sales, river
-flow, traffic. There is no single best method. This notebook runs seven techniques, from a one-line
-baseline to a Transformer, on **two problems chosen to have opposite winners**, and explains why each wins
-where it does.
+flow, traffic. There is no single best method. This notebook runs eight techniques, from a one-line
+baseline to a Transformer and a pretrained foundation model, on **two problems chosen so that the trained
+models have opposite winners**, and explains why each wins where it does, and why a model that was never
+trained on either beats them both on average error.
 
-Running every model takes about 25 minutes on a laptop CPU (the neural networks take most of it); the
-saved results below can be read without running anything.
+Running every model takes about an hour and a half on a laptop CPU (the foundation model and the neural
+networks take most of it); the saved results below can be read without running anything.
 
 **You will learn**
 1. The families of forecasting methods and how to evaluate them without fooling yourself
-2. Seasonal naive, SARIMA, Prophet, gradient boosting (XGBoost), a GRU in PyTorch, an LSTM in Keras and a Transformer, implemented on the same problem
+2. Seasonal naive, SARIMA, Prophet, gradient boosting (XGBoost), a GRU in PyTorch, an LSTM in Keras and a Transformer, implemented on the same problem, and Google's TimesFM 3 used zero-shot, with no training at all
 3. **Example 1, bike-sharing demand**: tabular data with strong known features, where gradient boosting wins
 4. **Example 2, river flow driven by rain**: hidden state and long, smooth responses, where recurrent neural networks win
-5. A decision guide for real projects
+5. What a zero-shot foundation model (TimesFM 3) achieves on both, and what it costs
+6. A decision guide for real projects
 """)
 
 md(r"""
@@ -30,7 +32,7 @@ md(r"""
 | Machine learning on features | **XGBoost**, LightGBM, random forests | a table of engineered features (lags, calendar, covariates) | tabular problems with informative features and moderate data, most competition wins |
 | Recurrent networks | **GRU**, **LSTM** | raw sequences | long memory, hidden state, many related series |
 | Attention | **Transformers** (TFT, PatchTST, Informer) | raw sequences, all positions at once (often grouped into patches) | long contexts, lots of data |
-| Foundation models | Chronos, TimesFM, Moirai | pretrained on millions of series | zero-shot forecasts without training |
+| Foundation models | Chronos, **TimesFM**, Moirai | pretrained on millions of series | zero-shot forecasts without training |
 
 **Evaluating forecasts honestly**
 - Split by **time**, never randomly: train on the past, test on the future.
@@ -313,7 +315,48 @@ score("Transformer (PyTorch)", to_log(p), time.perf_counter() - t0); print(f"   
 """)
 
 md(r"""
-### 2.6 Results
+### 2.6 Zero-shot: TimesFM 3 (Google)
+A **foundation model** for time series: a Transformer that Google pretrained on a very large collection of
+real and synthetic series from many domains. It is never trained on our data. Give it a stretch of history
+and it returns the forecast directly, the way a language model continues a text.
+
+Two ways to call it, from the same midnight origins as every other model:
+- **history only**: the last 2,048 hours (about 12 weeks) of `log(1 + count)`, nothing else;
+- **with covariates**: the same history plus the weather and calendar columns (`temp`, `humidity`,
+  `windspeed`, `workingday`, `holiday`) over that history **and** the 24 hours to forecast. The model reads
+  them as extra input series next to the target; there is still no training step.
+
+**Before you use it in a project, check the licence.** The TimesFM code is Apache-2.0, but the TimesFM 3
+weights are published under Google's *timesfm-non-commercial-license-v1.0*: fine for learning and research,
+not for self-hosted commercial or production use (Google offers commercial use through Google Cloud). The
+previous generation, TimesFM 2.5, has Apache-2.0 weights.
+
+TimesFM 3 is installed from GitHub at a pinned commit (see `requirements.txt`; PyPI does not have version 3
+yet), and the weights (1.3 GB) download from Hugging Face the first time the model loads.
+""")
+code(r"""
+from timesfm3 import TimesFM3Forecaster
+t0 = time.perf_counter()
+tfm = TimesFM3Forecaster.from_pretrained("google/timesfm-3.0-pytorch", device="cpu")
+print(f"model loaded in {time.perf_counter() - t0:.0f} s")
+
+CTX = 2048                                                     # hours of history given to the model per forecast
+COV = ["temp", "humidity", "windspeed", "workingday", "holiday"]
+y_all, cov_all = bike["y"].to_numpy(), bike[COV].to_numpy().T
+origins = [bike.index.get_loc(d) for d in test_days]
+contexts = [y_all[o - CTX:o] for o in origins]
+
+t0 = time.perf_counter()
+out = list(tfm.predict_batch(contexts, horizon=24))
+score("TimesFM 3 (history only)", np.concatenate([f.forecast for f in out]), time.perf_counter() - t0)
+
+t0 = time.perf_counter()
+out = list(tfm.predict_batch(contexts, horizon=24, past_future_covariates=[cov_all[:, o - CTX:o + 24] for o in origins]))
+score("TimesFM 3 + covariates", np.concatenate([f.forecast for f in out]), time.perf_counter() - t0)
+""")
+
+md(r"""
+### 2.7 Results
 """)
 code(r"""
 table_a = pd.DataFrame(results).T.sort_values("MAE (bikes/h)").round(1)
@@ -323,7 +366,7 @@ week = slice(0, 24 * 7)
 idx = bike.index[bike.index >= TEST_START][week]
 plt.figure(figsize=(13, 3.8))
 plt.plot(idx, y_true[week], color="black", lw=2, label="actual")
-for name in ["XGBoost", "GRU (PyTorch)", "Prophet", "Seasonal naive (7 d)"]:
+for name in ["TimesFM 3 + covariates", "XGBoost", "GRU (PyTorch)", "Seasonal naive (7 d)"]:
     plt.plot(idx, forecasts[name][week], lw=1.2, label=name)
 plt.legend(ncol=5, fontsize=8); plt.title("First test week: day-ahead forecasts"); plt.ylabel("bikes per hour")
 plt.tight_layout(); plt.show()
@@ -335,8 +378,16 @@ plt.tight_layout(); plt.show()
 """)
 
 md(r"""
-### Why gradient boosting wins here
-**XGBoost has the lowest error** (about 45 bikes per hour against 76 for seasonal naive) and trains in
+### Why gradient boosting wins among the trained models
+**The zero-shot foundation model comes first on average error.** TimesFM 3 with the weather and calendar
+covariates reaches 40.6 bikes per hour against 44.6 for XGBoost, without ever being trained on this city;
+with the history alone (46.2) it already matches the GRU. Three things temper that: XGBoost still has the
+lower RMSE (71.0 against 72.1), so TimesFM is better on typical hours but not on the largest misses; it
+takes about 7 minutes of CPU for 92 forecasts, where XGBoost trains and predicts in 2 seconds; and its
+weights cannot go into a commercial product outside Google Cloud. Without the covariates it loses its lead,
+so the weather does much of the work here too.
+
+Among the models trained on this data, **XGBoost has the lowest error** (about 45 bikes per hour against 76 for seasonal naive) and trains in
 seconds. The GRU comes close, within a few percent, after minutes of training; the LSTM and the
 Transformer land a little further back. SARIMA and Prophet do worse than the one-line baseline: SARIMA's
 linear structure, fitted on recent weeks, cannot represent the switch between working-day and weekend
@@ -547,7 +598,27 @@ print(f"   {len(h2.history['loss'])} epochs")
 """)
 
 md(r"""
-### 3.4 Results
+### 3.4 Zero-shot: TimesFM 3 with the rain forecast
+The same pretrained model, still with no training: for each forecast it gets the flow history and, as a
+covariate, the rain over that history and the 48 forecast hours. A foundation model is not limited to the
+72 hours the trained models read, so it gets 512 hours (about three weeks) of history: more context costs
+it nothing but inference time, and three weeks of flow tell it more about how wet the catchment is. The
+8,712 forecasts take about an hour on a laptop CPU.
+""")
+code(r"""
+CTX2 = 512
+ctx2, cov2 = [], []
+for rain, flow in catchments:
+    for o in range(YEAR, HOURS - H2, 24):                       # the same forecast origins as the test windows
+        ctx2.append(flow[o - CTX2:o]); cov2.append(rain[None, o - CTX2:o + H2])
+t0 = time.perf_counter()
+out = list(tfm.predict_batch(ctx2, horizon=H2, past_future_covariates=cov2))
+p = np.stack([f.forecast for f in out]); assert p.shape == Yte2.shape
+score2("TimesFM 3 + rain forecast", p, time.perf_counter() - t0)
+""")
+
+md(r"""
+### 3.5 Results
 """)
 code(r"""
 table_b = pd.DataFrame(results2).T.sort_values("MAE").round(4)
@@ -567,8 +638,14 @@ plt.tight_layout(); plt.show()
 """)
 
 md(r"""
-### Why recurrent networks win here
-The **GRU cuts the error by about 40% compared with XGBoost**, and by a similar margin on the top 5% of
+### Why recurrent networks win among the trained models
+**TimesFM 3 comes first again, by a small margin**: MAE 0.0325 against 0.0342 for the GRU, and 0.173
+against 0.180 on the top 5% of flows, zero-shot. It is not quite like for like: it read 512 hours of history
+where the trained models read 72, and it took about an hour of CPU against under six minutes for the GRU,
+training included. Still, a model that has never seen these catchments edging out a network trained on 24
+of them is the clearest sign of why foundation models are taken seriously.
+
+Among the trained models, the **GRU cuts the error by about 40% compared with XGBoost**, and by a similar margin on the top 5% of
 flows, the floods a warning service exists for. The LSTM is close behind. The error-by-lead-time chart shows
 where: the gap opens from the first hour and widens until about 12 hours ahead, as the forecast depends more
 and more on how the catchment turns future rain into flow, then stays roughly constant.
@@ -603,8 +680,14 @@ md(r"""
 | a table of strong drivers known at forecast time (calendar, weather, prices, promotions) | **gradient boosting** (XGBoost, LightGBM) with lag features | a blend of boosting and a linear model |
 | many related series (thousands of products, sensors, catchments) | a global gradient boosting model | a global RNN or Transformer |
 | hidden state, long memory, smooth responses to inputs spread over time (hydrology, physiology, energy storage) | **recurrent networks** (GRU/LSTM encoder-decoder) | Transformers, or physics-based features for boosting |
-| very long histories, lots of data, high frequency | Transformers (PatchTST, TFT) | foundation models (Chronos, TimesFM) as zero-shot baselines |
+| very long histories, lots of data, high frequency | Transformers (PatchTST, TFT) | foundation models (Chronos, TimesFM) zero-shot |
 | little data and no time | seasonal naive, then a foundation model zero-shot | |
+
+**Try a foundation model early.** In both examples TimesFM 3, with no training, matched or beat the best
+model trained on the data once it had the covariates, which makes it a strong first baseline whatever the
+problem looks like. Check three things before relying on one: the licence of the weights, the inference cost
+at your volume (minutes to an hour on a CPU here, where XGBoost needs seconds), and whether the known drivers
+(weather, calendar, a rain forecast) can be passed as covariates; in example 1 it lost its lead without them.
 
 Whatever you choose: split by time, compare against a naive baseline, look at errors by lead time and on
 the events that matter (peaks, rush hours), and prefer the simplest model that is clearly better.
@@ -613,7 +696,8 @@ the events that matter (peaks, rush hours), and prefer the simplest model that i
 1. In example 1, drop the weather columns from XGBoost. How much worse does it get, and does a neural network close the gap?
 2. In example 2, add an *antecedent precipitation index* (an exponentially weighted sum of past rain, the hydrologist's proxy for soil moisture) to the XGBoost table. How much of the gap to the GRU does one well-chosen feature close?
 3. Train the example 2 GRU on only 6 catchments and test on the other 18. Does it still beat XGBoost on catchments it has never seen?
-4. Use `pip install chronos-forecasting` to add a zero-shot foundation model to example 1.
+4. Add Amazon's Chronos-Bolt (`pip install chronos-forecasting`, Apache-2.0 weights) to example 1 and compare it with TimesFM 3.
+5. In example 2, give TimesFM 3 only the same 72 hours of history as the GRU. Does it still win?
 """)
 
 save("12_time_series_forecasting.ipynb")

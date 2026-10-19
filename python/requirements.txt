@@ -35,3 +35,4 @@ xgboost>=2.1
 prophet>=1.1
 torch>=2.4
 tensorflow>=2.17
+timesfm @ git+https://github.com/google-research/timesfm@e51928e27119cb17bebc005be2696b75e0a9e688   # TimesFM 3, not on PyPI yet; non-commercial weights licence (notebook 12)

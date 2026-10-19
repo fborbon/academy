@@ -1,24 +1,26 @@
 @@ file 12_prevision_de_series_temporales.ipynb
 
-@@ md c9a5e7da6a
+@@ md d00164b894
 # 12 · Previsión de series temporales
 
 Prever es predecir el futuro de una magnitud que se mide a lo largo del tiempo: la demanda eléctrica, las
-ventas, el caudal de un río, el tráfico. No existe un único método mejor. Este notebook aplica siete técnicas,
-desde una referencia de una línea hasta un Transformer, a **dos problemas elegidos para tener ganadores
-opuestos**, y explica por qué cada una gana donde gana.
+ventas, el caudal de un río, el tráfico. No existe un único método mejor. Este notebook aplica ocho técnicas,
+desde una referencia de una línea hasta un Transformer y un modelo fundacional preentrenado, a **dos problemas
+elegidos para que los modelos entrenados tengan ganadores opuestos**, y explica por qué cada una gana donde gana,
+y por qué un modelo que nunca se entrenó con ninguno de los dos los supera a todos en error medio.
 
-Ejecutar todos los modelos lleva unos 25 minutos en la CPU de un portátil (las redes neuronales se llevan la
-mayor parte); los resultados guardados de abajo se pueden leer sin ejecutar nada.
+Ejecutar todos los modelos lleva alrededor de una hora y media en la CPU de un portátil (el modelo fundacional y
+las redes neuronales se llevan la mayor parte); los resultados guardados de abajo se pueden leer sin ejecutar nada.
 
 **Aprenderás**
 1. Las familias de métodos de previsión y cómo evaluarlos sin engañarte
-2. Ingenuo estacional, SARIMA, Prophet, gradient boosting (XGBoost), una GRU en PyTorch, una LSTM en Keras y un Transformer, aplicados al mismo problema
+2. Ingenuo estacional, SARIMA, Prophet, gradient boosting (XGBoost), una GRU en PyTorch, una LSTM en Keras y un Transformer, aplicados al mismo problema, y TimesFM 3 de Google usado sin entrenamiento (zero-shot)
 3. **Ejemplo 1, demanda de bicicletas compartidas**: datos tabulares con variables conocidas y potentes, donde gana el gradient boosting
 4. **Ejemplo 2, caudal de un río por la lluvia**: estado oculto y respuestas largas y suaves, donde ganan las redes neuronales recurrentes
-5. Una guía de decisión para proyectos reales
+5. Qué consigue en ambos un modelo fundacional sin entrenamiento (TimesFM 3), y lo que cuesta
+6. Una guía de decisión para proyectos reales
 
-@@ md e1c844b582
+@@ md d6cd6f223a
 ## 1. El panorama
 
 | Familia | Ejemplos | Aprende de | Destaca cuando |
@@ -29,7 +31,7 @@ mayor parte); los resultados guardados de abajo se pueden leer sin ejecutar nada
 | Aprendizaje automático sobre variables | **XGBoost**, LightGBM, bosques aleatorios | una tabla de variables construidas (retardos, calendario, covariables) | problemas tabulares con variables informativas y datos moderados; la mayoría de las competiciones |
 | Redes recurrentes | **GRU**, **LSTM** | secuencias en bruto | memoria larga, estado oculto, muchas series relacionadas |
 | Atención | **Transformers** (TFT, PatchTST, Informer) | secuencias en bruto, todas las posiciones a la vez (a menudo agrupadas en parches) | contextos largos, muchos datos |
-| Modelos fundacionales | Chronos, TimesFM, Moirai | preentrenados con millones de series | previsiones sin entrenamiento previo (zero-shot) |
+| Modelos fundacionales | Chronos, **TimesFM**, Moirai | preentrenados con millones de series | previsiones sin entrenamiento previo (zero-shot) |
 
 **Evaluar previsiones con honestidad**
 - Divide por **tiempo**, nunca al azar: entrena con el pasado y prueba con el futuro.
@@ -87,12 +89,40 @@ devuelven los 24 valores a la vez. El entrenamiento usa como origen de previsió
 periodo de entrenamiento (unos 5.000 ejemplos); las cuatro últimas semanas de entrenamiento se reservan para
 detenerlo en la mejor época.
 
-@@ md 4127d19a72
-### 2.6 Resultados
+@@ md cba927c88d
+### 2.6 Sin entrenamiento: TimesFM 3 (Google)
+Un **modelo fundacional** para series temporales: un Transformer que Google preentrenó con una colección muy
+grande de series reales y sintéticas de muchos ámbitos. Nunca se entrena con nuestros datos. Le das un tramo
+de historia y devuelve la previsión directamente, igual que un modelo de lenguaje continúa un texto.
 
-@@ md 30c74c76c2
-### Por qué gana aquí el gradient boosting
-**XGBoost tiene el menor error** (unas 45 bicicletas por hora frente a 76 del ingenuo estacional) y se entrena en
+Dos formas de llamarlo, desde las mismas medianoches que todos los demás modelos:
+- **solo historia**: las últimas 2.048 horas (unas 12 semanas) de `log(1 + count)`, nada más;
+- **con covariables**: la misma historia más las columnas de tiempo meteorológico y calendario (`temp`,
+  `humidity`, `windspeed`, `workingday`, `holiday`) durante esa historia **y** las 24 horas a prever. El modelo
+  las lee como series de entrada adicionales junto al objetivo; sigue sin haber paso de entrenamiento.
+
+**Antes de usarlo en un proyecto, revisa la licencia.** El código de TimesFM es Apache-2.0, pero los pesos de
+TimesFM 3 se publican con la licencia *timesfm-non-commercial-license-v1.0* de Google: sirven para aprender e
+investigar, no para un uso comercial o en producción alojado por tu cuenta (Google ofrece el uso comercial a
+través de Google Cloud). La generación anterior, TimesFM 2.5, tiene pesos Apache-2.0.
+
+TimesFM 3 se instala desde GitHub en un commit fijado (ver `requirements.txt`; PyPI todavía no tiene la versión
+3), y los pesos (1,3 GB) se descargan de Hugging Face la primera vez que se carga el modelo.
+
+@@ md 46123afe61
+### 2.7 Resultados
+
+@@ md 7cf1f3f409
+### Por qué gana el gradient boosting entre los modelos entrenados
+**El modelo fundacional sin entrenamiento queda primero en error medio.** TimesFM 3 con las covariables de tiempo
+meteorológico y calendario llega a 40,6 bicicletas por hora frente a 44,6 de XGBoost, sin haberse entrenado
+nunca con esta ciudad; solo con la historia (46,2) ya iguala a la GRU. Tres cosas matizan el resultado: XGBoost
+sigue teniendo menor RMSE (71,0 frente a 72,1), así que TimesFM acierta mejor en las horas típicas pero no en
+los errores más grandes; tarda unos 7 minutos de CPU en 92 previsiones, cuando XGBoost entrena y predice en 2
+segundos; y sus pesos no pueden ir en un producto comercial fuera de Google Cloud. Sin las covariables pierde la
+ventaja, así que aquí también el tiempo meteorológico hace buena parte del trabajo.
+
+Entre los modelos entrenados con estos datos, **XGBoost tiene el menor error** (unas 45 bicicletas por hora frente a 76 del ingenuo estacional) y se entrena en
 segundos. La GRU se queda cerca, a pocos puntos porcentuales, tras minutos de entrenamiento; la LSTM y el
 Transformer quedan algo más atrás. SARIMA y Prophet lo hacen peor que la referencia de una línea: la estructura
 lineal de SARIMA, ajustada con las semanas recientes, no puede representar el cambio entre el patrón laborable y
@@ -158,12 +188,27 @@ la red sobre el estado de la cuenca (lo húmeda que está, lo rápido que respon
 recorre las 48 horas de previsión, leyendo la lluvia prevista hora a hora y actualizando ese estado, tal como el
 agua se mueve por la cuenca. No se construye ninguna variable a mano.
 
-@@ md 624db6dc4a
-### 3.4 Resultados
+@@ md 74bcab0e9c
+### 3.4 Sin entrenamiento: TimesFM 3 con la lluvia prevista
+El mismo modelo preentrenado, todavía sin entrenar: para cada previsión recibe la historia del caudal y, como
+covariable, la lluvia durante esa historia y las 48 horas previstas. Un modelo fundacional no está limitado a
+las 72 horas que leen los modelos entrenados, así que recibe 512 horas (unas tres semanas) de historia: más
+contexto solo le cuesta tiempo de inferencia, y tres semanas de caudal le dicen más sobre lo húmeda que está la
+cuenca. Las 8.712 previsiones llevan alrededor de una hora en la CPU de un portátil.
 
-@@ md ada721495a
-### Por qué ganan aquí las redes recurrentes
-**La GRU reduce el error en torno a un 40% respecto a XGBoost**, y en un margen parecido en el 5% de caudales más
+@@ md 279ce51449
+### 3.5 Resultados
+
+@@ md 4b313df023
+### Por qué ganan las redes recurrentes entre los modelos entrenados
+**TimesFM 3 vuelve a quedar primero, por poco**: MAE 0,0325 frente a 0,0342 de la GRU, y 0,173 frente a 0,180
+en el 5% de caudales más altos, sin entrenamiento. No es del todo una comparación en igualdad de condiciones:
+leyó 512 horas de historia donde los modelos entrenados leen 72, y tardó alrededor de una hora de CPU frente a
+menos de seis minutos de la GRU, entrenamiento incluido. Aun así, que un modelo que nunca ha visto estas cuencas
+supere por poco a una red entrenada con 24 de ellas es la señal más clara de por qué los modelos fundacionales se
+toman en serio.
+
+Entre los modelos entrenados, **la GRU reduce el error en torno a un 40% respecto a XGBoost**, y en un margen parecido en el 5% de caudales más
 altos, las crecidas para las que existe un servicio de alerta. La LSTM le sigue de cerca. El gráfico de error por
 horizonte muestra dónde: la diferencia se abre desde la primera hora y crece hasta unas 12 horas vista, a medida
 que la previsión depende cada vez más de cómo convierte la cuenca la lluvia futura en caudal, y después se
@@ -191,7 +236,7 @@ La comparación es justa con XGBoost, pero no exhaustiva: un hidrólogo construi
 suelo (un índice de precipitación antecedente) y reduciría la diferencia; el ejercicio 2 mide cuánto. La red
 aprende esa variable por sí sola, y esa es la ventaja real cuando no se sabe de antemano qué variables hacen falta.
 
-@@ md 3f0050ec29
+@@ md 12abb27553
 ## 4. Una guía de decisión
 
 | Tu problema se parece a... | Empieza con | Después prueba |
@@ -200,8 +245,15 @@ aprende esa variable por sí sola, y esa es la ventaja real cuando no se sabe de
 | una tabla de factores potentes conocidos al prever (calendario, tiempo, precios, promociones) | **gradient boosting** (XGBoost, LightGBM) con retardos | una mezcla de boosting y un modelo lineal |
 | muchas series relacionadas (miles de productos, sensores, cuencas) | un modelo global de gradient boosting | una RNN o un Transformer globales |
 | estado oculto, memoria larga, respuestas suaves a entradas repartidas en el tiempo (hidrología, fisiología, almacenamiento de energía) | **redes recurrentes** (GRU/LSTM codificador-decodificador) | Transformers, o variables con base física para el boosting |
-| historiales muy largos, muchos datos, alta frecuencia | Transformers (PatchTST, TFT) | modelos fundacionales (Chronos, TimesFM) como referencia sin entrenamiento |
+| historiales muy largos, muchos datos, alta frecuencia | Transformers (PatchTST, TFT) | modelos fundacionales (Chronos, TimesFM) sin entrenamiento |
 | pocos datos y poco tiempo | ingenuo estacional, después un modelo fundacional sin entrenamiento | |
+
+**Prueba pronto un modelo fundacional.** En los dos ejemplos TimesFM 3, sin entrenamiento, igualó o superó al
+mejor modelo entrenado con los datos en cuanto tuvo las covariables, lo que lo convierte en una referencia inicial
+fuerte sea cual sea el problema. Comprueba tres cosas antes de confiar en uno: la licencia de los pesos, el coste
+de inferencia a tu volumen (de minutos a una hora en CPU aquí, donde XGBoost necesita segundos) y si los motores
+conocidos (tiempo meteorológico, calendario, una previsión de lluvia) se pueden pasar como covariables; en el
+ejemplo 1 perdió la ventaja sin ellas.
 
 Elijas lo que elijas: divide por tiempo, compara con una referencia ingenua, mira los errores por horizonte y en los
 sucesos que importan (picos, horas punta) y prefiere el modelo más sencillo que sea claramente mejor.
@@ -210,7 +262,8 @@ sucesos que importan (picos, horas punta) y prefiere el modelo más sencillo que
 1. En el ejemplo 1, quita las columnas del tiempo meteorológico de XGBoost. ¿Cuánto empeora y cierra una red neuronal la diferencia?
 2. En el ejemplo 2, añade un *índice de precipitación antecedente* (una suma de la lluvia pasada con pesos que decaen exponencialmente, el indicador que usan los hidrólogos para la humedad del suelo) a la tabla de XGBoost. ¿Cuánta diferencia con la GRU cierra una sola variable bien elegida?
 3. Entrena la GRU del ejemplo 2 con solo 6 cuencas y pruébala con las otras 18. ¿Sigue superando a XGBoost en cuencas que nunca ha visto?
-4. Usa `pip install chronos-forecasting` para añadir un modelo fundacional sin entrenamiento al ejemplo 1.
+4. Añade Chronos-Bolt de Amazon (`pip install chronos-forecasting`, pesos Apache-2.0) al ejemplo 1 y compáralo con TimesFM 3.
+5. En el ejemplo 2, dale a TimesFM 3 solo las mismas 72 horas de historia que a la GRU. ¿Sigue ganando?
 
 @@ code
 <<< # rebuilt dates match the weekdays
@@ -321,5 +374,17 @@ sucesos que importan (picos, horas punta) y prefiere el modelo más sencillo que
 >>> label="lluvia prevista (escalada)")
 <<< label="actual flow")
 >>> label="caudal real")
+<<< # hours of history given to the model per forecast
+>>> # horas de historia que recibe el modelo en cada previsión
+<<< print(f"model loaded in {time.perf_counter() - t0:.0f} s")
+>>> print(f"modelo cargado en {time.perf_counter() - t0:.0f} s")
+<<< "TimesFM 3 (history only)"
+>>> "TimesFM 3 (solo historia)"
+<<< "TimesFM 3 + covariates"
+>>> "TimesFM 3 + covariables"
+<<< # the same forecast origins as the test windows
+>>> # los mismos orígenes de previsión que las ventanas de prueba
+<<< "TimesFM 3 + rain forecast"
+>>> "TimesFM 3 + lluvia prevista"
 <<< ax[1].set_title("the wettest forecast window of the test year"); ax[1].legend(fontsize=7)
 >>> ax[1].set_title("la ventana de previsión más lluviosa del año de prueba"); ax[1].legend(fontsize=7)

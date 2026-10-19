@@ -31,7 +31,7 @@ on an ordinary laptop CPU in a few minutes.
 | 09 | Physics and Space Research | Advanced | SymPy derivation of the pendulum, SciPy simulation, FFT, Astropy units and constants, Kepler's third law on the planets, an orbit validated by conservation laws, sky coordinates |
 | 10 | Economics and Econometrics | Advanced | statsmodels on US macro data: Okun's law with HAC errors and its stability by decade; ARIMA forecasts in a rolling backtest against naive baselines |
 | 11 | AI Frameworks: PyTorch and TensorFlow | Advanced | the same CNN in both frameworks: autograd vs. GradientTape, explicit loop vs. `fit`, saving and reloading, how to choose |
-| 12 | Time Series Forecasting | Advanced | seasonal naive, SARIMA, Prophet, XGBoost, GRU (PyTorch), LSTM (Keras) and a Transformer on two problems: hourly bike demand (tabular data with strong features, where gradient boosting wins) and river flow driven by rain (hidden long-memory state, where recurrent networks win), and why |
+| 12 | Time Series Forecasting | Advanced | seasonal naive, SARIMA, Prophet, XGBoost, GRU (PyTorch), LSTM (Keras), a Transformer and Google's TimesFM 3 zero-shot on two problems: hourly bike demand (tabular data with strong features, where gradient boosting wins among trained models) and river flow driven by rain (hidden long-memory state, where recurrent networks do), and why; the untrained foundation model beats both on average error |
 | 13 | Capstone: Solving a Kaggle Challenge | Advanced | House Prices end to end: data licensing, log-RMSE metric, exploration, feature engineering in a Pipeline, cross-validation, blending (held-out RMSE(log) 0.110), submission file |
 
 The material of the original interview-refresher notebook (core types, functions, classes and the four OOP
@@ -69,13 +69,17 @@ one). Notebook 03 runs PySpark, which needs a Java runtime 17 or newer (`apt ins
 | PySpark | distributed DataFrames and SQL | 03 |
 | XGBoost, Prophet | gradient-boosted trees, decomposable forecasting | 12 |
 | PyTorch, TensorFlow/Keras | deep learning frameworks | 11, 12 |
+| TimesFM 3 (Google) | pretrained time-series foundation model, zero-shot | 12 |
 | matplotlib | every figure | all |
 
 ## Data and licences
 
 Most data is generated inside the notebooks or ships with the libraries (scikit-learn, statsmodels,
 lifelines). Notebook 12 uses the UCI Bike Sharing dataset (Fanaee-T and Gama, 2013, licence CC BY 4.0) from
-OpenML (dataset 42712). The Kaggle capstone deliberately does **not** use Kaggle's competition files, whose rules
+OpenML (dataset 42712). Notebook 12 also loads Google's TimesFM 3 weights (1.3 GB, from Hugging Face): the
+code is Apache-2.0 but the weights use the *timesfm-non-commercial-license-v1.0*, fine for learning and research,
+not for self-hosted commercial or production use. TimesFM is installed from GitHub at a pinned commit
+(`requirements.txt`), since PyPI does not have version 3 yet. The Kaggle capstone deliberately does **not** use Kaggle's competition files, whose rules
 restrict use and redistribution: it uses the original **Ames Housing** dataset compiled for teaching by
 Dean De Cock (*Journal of Statistics Education*, 2011), from OpenML (dataset 43926, licence: public), and
 explains how to download the competition files with your own account to submit. Credits are listed on the
