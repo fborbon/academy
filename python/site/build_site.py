@@ -24,7 +24,7 @@ DIST = os.path.join(HERE, "dist")
 REPO = "https://github.com/fborbon/academy"
 REPO_PATH = "python"
 SITE_URL = "https://python.academy.forwardforecasting.eu"
-FIELD_NOTES = "https://education.forwardforecasting.eu/"
+FIELD_NOTES = "https://fieldnotes.forwardforecasting.eu/"
 
 # per-module data that does not depend on the language
 BASE = [

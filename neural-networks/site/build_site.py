@@ -24,7 +24,7 @@ DIST = os.path.join(HERE, "dist")
 REPO = "https://github.com/fborbon/academy"
 REPO_PATH = "neural-networks"
 SITE_URL = "https://neural-networks.academy.forwardforecasting.eu"
-FIELD_NOTES = "https://education.forwardforecasting.eu/neural-networks-1001/"
+FIELD_NOTES = "https://fieldnotes.forwardforecasting.eu/neural-networks-1001/"
 
 # per-module data that does not depend on the language
 BASE = [
