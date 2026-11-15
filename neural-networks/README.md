@@ -14,10 +14,7 @@ Nine hands-on Jupyter notebooks that build modern deep learning from first princ
 - [How a GPT is put together](#how-a-gpt-is-put-together)
 - [Libraries and techniques explained](#libraries-and-techniques-explained)
 - [Why these models and datasets](#why-these-models-and-datasets)
-- [Repository layout](#repository-layout)
-- [The Spanish edition](#the-spanish-edition)
 - [Getting started](#getting-started)
-- [The course website and its deployment](#the-course-website-and-its-deployment)
 - [Runtime and cost](#runtime-and-cost)
 - [References](#references)
 - [Contact](#contact)
@@ -144,53 +141,6 @@ Key AI techniques, and where each one is introduced:
 - **Sorting for the transformer.** Sorting cannot be memorised (10^10 possible inputs) and forces the model to use attention as a pointer, which makes the attention maps easy to interpret.
 - **Multi-task corpus for GPT.** Arithmetic, string reversal, sorting, translation and factual recall written as plain text show the central GPT idea: one model, one objective (predict the next token), many skills selected by the prompt.
 
-## Repository layout
-
-```
-neural-networks/
-├── 01_ ... 10_*.ipynb      the course, saved with outputs (10 is the capstone)
-├── es/                     the Spanish edition of the same ten notebooks, saved with outputs
-├── builders/               Python scripts that generate each notebook (source of truth for the text and code)
-│   ├── nbhelper.py         md() / code() / save() helpers, plus the translation layer
-│   ├── build_01.py ... build_10.py
-│   ├── i18n/es/01.txt ...  Spanish translations, one file per notebook
-│   ├── rebuild.py          regenerate / execute / check notebooks without losing outputs
-│   └── i18n_skeleton.py    print a notebook's translatable cells, to write or update a translation
-├── site/                   the course website generator (English at /, Spanish at /es/)
-│   ├── build_site.py       renders the notebooks into site/dist/ (not committed)
-│   └── templates/          page layouts, CSS and JS
-└── requirements.txt
-```
-
-To change a notebook, edit its builder, then regenerate it through `rebuild.py` (running a builder directly writes a notebook **without** outputs):
-
-```bash
-python3 builders/rebuild.py 04                         # text-only change: outputs are carried over
-python3 builders/rebuild.py 04 --execute               # code change: regenerate and re-run
-python3 builders/rebuild.py 04 --lang es --execute     # the same for the Spanish edition
-python3 builders/rebuild.py all --check                # what CI runs: everything matches its builder
-```
-
-## The Spanish edition
-
-The Spanish notebooks are not a fork. They are generated from the **same builders**, with `NB_LANG=es`:
-
-- every markdown cell is replaced by its translation from `builders/i18n/es/NN.txt`, looked up by a fingerprint of the English text;
-- code cells get a short list of exact text replacements from the same file, limited to comments and display labels (plot titles, printed headers). Code logic and data never change, so both editions produce the same numbers;
-- if an English cell changes and its translation is not updated, or a code replacement no longer matches, the build stops with a list of what is out of date. CI runs `rebuild.py all --check` on every push, so the two editions cannot drift apart silently.
-
-Updating a translation after editing an English notebook:
-
-```bash
-python3 builders/i18n_skeleton.py 04 --missing     # the English cells that need a (new) Spanish version
-# edit builders/i18n/es/04.txt, then:
-python3 builders/rebuild.py 04 --lang es           # or --execute if the code changed
-```
-
-Two datasets stay in English on purpose, and the Spanish notebooks explain why: the word-embedding corpus in notebook 06 (so the analogies match the published results) and the GPT training corpus in notebook 08 (whose translation task is English to Spanish). The Spanish text uses neutral Spanish that reads naturally in both Spain and Latin America.
-
-The website adds an English/Spanish switch on every page and `hreflang` links between the two editions. Code, outputs and equations are marked `translate="no"`, so the page translator offered for other languages never mangles them.
-
 ## Getting started
 
 Requirements: Python 3.10+.
@@ -211,30 +161,6 @@ jupyter nbconvert --to notebook --execute --inplace 01_the_neuron.ipynb
 
 Run notebooks one at a time: several PyTorch kernels in parallel compete for the same CPU threads and can each run many times slower.
 
-## The course website and its deployment
-
-`site/build_site.py` renders the executed notebooks with nbconvert's `basic` template (it does **not** re-run them) and wraps them in a course layout: a landing page with the syllabus, one page per module with a module sidebar, an "on this page" table of contents, MathJax for the equations, a download link, an Open-in-Colab link, and progress tracking stored in the visitor's browser.
-
-Progress tracking keeps two lists in `localStorage`: the modules a learner marked complete (`nn1001-done`) and the modules they have opened (`nn1001-opened`), shown as "✓ completed" and "● in progress" on the syllabus and in the sidebar, with a "continue with module N" link. Module numbers and storage keys never change, so adding a module keeps everyone's progress. A third list (`nn1001-known`) records which modules existed when the learner first arrived, so any module published later is marked "New" for them until they open it, while newcomers see no badge. Learners from before that list existed are recognised by having progress without it; `ADDED_LATER` in `build_site.py` names the modules they had never seen (currently 10). Nothing leaves the browser: there are no accounts and no server-side progress data.
-
-```mermaid
-flowchart LR
-    A[push to main<br/>notebooks, builders or site/] --> K[GitHub Actions<br/>rebuild.py all --check]
-    K --> B[build_site.py<br/>English + Spanish]
-    B --> C[copy site/dist into the<br/>portfolio site repository]
-    C --> D[that repository's webhook<br/>deploys to the web server]
-    D --> E[nginx serves<br/>neural-networks.academy.forwardforecasting.eu]
-```
-
-Preview it locally:
-
-```bash
-python3 site/build_site.py
-python3 -m http.server -d site/dist 8000     # then open http://localhost:8000
-```
-
-The workflow lives at the repository root in `.github/workflows/deploy-neural-networks.yml` and needs one secret, `GH_PAT`, a token with write access to the portfolio site repository.
-
 ## Runtime and cost
 
 Everything in the course runs locally on the CPU. There are **no paid APIs**: no Bedrock, no Anthropic API calls, no cloud training.
@@ -243,12 +169,7 @@ Everything in the course runs locally on the CPU. There are **no paid APIs**: no
 |---|---|
 | LLM / AI API calls | none ($0) |
 | Compute to run the notebooks | your own machine, about 75 minutes to run all ten end to end on an 8-core laptop CPU (35 of them in the capstone, 16 in notebook 08); the same again for the Spanish edition |
-| Website hosting | static files on the existing web server that already hosts the other forwardforecasting.eu sites: no new instance, no extra AWS cost |
-| DNS | one extra A record in an existing Route 53 hosted zone (no extra charge; the zone's $0.50/month is already paid) |
-| TLS certificate | Let's Encrypt, free, renewed automatically |
-| CI | GitHub Actions, about 1 minute per deploy, within the free tier |
-| Bandwidth | about 10 MB per full read of the course in one language, mostly the notebook figures; negligible at the current traffic. Running the capstone downloads about 125 MB once (photos from Mendeley Data, ResNet-18 weights from the PyTorch servers), free of charge |
-| Disk | about 8 MB of notebooks per language (16 MB for English + Spanish) plus about 35 MB for the rendered bilingual site; the capstone also caches about 80 MB of photos in ~/.cache/nn1001 and 45 MB of ResNet-18 weights in ~/.cache/torch |
+| Disk | about 8 MB of notebooks per language (16 MB for English + Spanish); the capstone also caches about 80 MB of photos in ~/.cache/nn1001 and 45 MB of ResNet-18 weights in ~/.cache/torch |
 
 ## References
 

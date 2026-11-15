@@ -13,8 +13,7 @@ on an ordinary laptop CPU in a few minutes.
 2. [Run it yourself](#run-it-yourself)
 3. [Libraries used](#libraries-used)
 4. [Data and licences](#data-and-licences)
-5. [How the notebooks and the website are built](#how-the-notebooks-and-the-website-are-built)
-6. [Cost and resources](#cost-and-resources)
+5. [Cost and resources](#cost-and-resources)
 
 ## Syllabus
 
@@ -85,29 +84,9 @@ Dean De Cock (*Journal of Statistics Education*, 2011), from OpenML (dataset 439
 explains how to download the competition files with your own account to submit. Credits are listed on the
 course home page. Code and text: MIT licence.
 
-## How the notebooks and the website are built
-
-The same pipeline as the other academy course:
-
-- `builders/build_NN.py` writes each notebook from Python (`builders/nbhelper.py`); never edit a notebook
-  by hand. `builders/rebuild.py NN --execute` regenerates and runs it (one at a time), and
-  `rebuild.py all --check` verifies in CI that every committed notebook matches its builder.
-- **Spanish edition:** English is the source language. `builders/i18n/es/NN.txt` holds, per notebook, the Spanish
-  text of every markdown cell (matched by a fingerprint of the English text) and exact replacements for code
-  comments and labels (never logic or data). `rebuild.py NN --lang es --execute` writes and runs
-  `es/<spanish name>.ipynb`; a missing or stale translation stops the build, and `rebuild.py all --check` covers
-  both languages, so the editions cannot drift apart. `builders/i18n_skeleton.py NN --missing` lists cells that
-  need translating after an English change.
-- `site/build_site.py` renders the saved outputs with nbconvert into a static site (`site/dist/`), with a
-  syllabus, lesson pages, progress kept in the browser, and downloadable notebooks.
-- `.github/workflows/deploy-python.yml` (repository root) checks, builds and copies the site into the
-  portfolio site repository, whose own deploy publishes it.
-- The nginx virtual host for the subdomain is versioned in `infra/nginx/academy-python.conf`.
-
 ## Cost and resources
 
-A static site: **$0** extra. It is served by the existing web server from files (no process, no memory),
-the build runs on free GitHub Actions minutes, and nothing in the course calls a paid API. Executing all
+Free: nothing in the course calls a paid API. Executing all
 thirteen notebooks locally takes about 15 minutes on a laptop CPU.
 
 ## Contact

@@ -5,3 +5,13 @@ __pycache__/
 neural-networks/site/dist/
 python/site/dist/
 home/dist/
+
+# Website tooling (notebook builders, site generators, deploy config) is kept locally only.
+# This repository shows just the notebooks students follow.
+.github/
+home/
+infra/
+neural-networks/builders/
+neural-networks/site/
+python/builders/
+python/site/
