@@ -8,7 +8,7 @@ GPU and no API keys.
 
 **Website:** [rag-systems.academy.forwardforecasting.eu](https://rag-systems.academy.forwardforecasting.eu/) (Spanish edition under `/es/`, notebooks in [`es/`](es/))
 
-**Status:** all eleven modules are written and executed, in English and Spanish.
+**Status:** all twelve modules are written and executed, in English and Spanish.
 
 ## Table of contents
 1. [Syllabus](#syllabus)
@@ -20,9 +20,11 @@ GPU and no API keys.
 
 ## Syllabus
 
-Every module uses one small fictional document set, the operations handbook of an offshore wind farm
+Modules 01 to 10 use one small fictional document set, the operations handbook of an offshore wind farm
 (*Harbourview*), written for the course, plus a battery of questions with known answers. Because the whole
-corpus can be read in ten minutes, you can always see *why* a retrieval or an answer failed.
+corpus can be read in ten minutes, you can always see *why* a retrieval or an answer failed. Module 11 repeats the
+method on a second fictional corpus, and module 12 on real text: nine State of the Union addresses (1950 to 2006),
+public-domain works of the United States government that ship in [`data/sotu/`](data/sotu/) so nothing is downloaded.
 
 | # | Notebook | Module | What it covers | Status |
 |---|---|---|---|---|
@@ -37,6 +39,7 @@ corpus can be read in ten minutes, you can always see *why* a retrieval or an an
 | 09 | Observability: Langfuse and LangSmith | Production | traces, token and cost accounting, scores attached to traces, dashboards; why one tracing stack was enough | done |
 | 10 | Production RAG on a Budget | Production | a serverless search endpoint (BM25 + one cheap model call), memory limits, cost per question, security and rate limits; **GraphRAG and Neo4j**: when a knowledge graph pays and why we did not use one | done |
 | 11 | Capstone: A Supervised RAG Assistant | Capstone | build the whole system end to end on a new corpus, evaluate it, run the supervisor, and fix what it finds | done |
+| 12 | A Real Corpus: Nine State of the Union Addresses | Capstone | repeat the method on real public-domain speeches: chunk size, metadata filters, refusing what was never said, query-side fixes | done |
 
 ## Where the material comes from
 
