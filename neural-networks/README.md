@@ -185,6 +185,9 @@ The notebooks are written from the original papers, not from any course material
 - Ronneberger, Fischer & Brox, *U-Net* (2015) · Redmon et al., *You Only Look Once* (2015) · Schroff, Kalenichenko & Philbin, *FaceNet* (2015)
 - Selvaraju et al., *Grad-CAM: Visual Explanations from Deep Networks via Gradient-based Localization* (2017) · Yosinski et al., *How transferable are features in deep neural networks?* (2014) · Efron & Tibshirani, *An Introduction to the Bootstrap* (1993)
 - Data for notebook 10: Zhou, Qianyu (2023), *GKN Blade Surface Defect Dataset*, Mendeley Data, V1, doi:10.17632/3bh998k78g.1, CC BY 4.0
+- Handwritten digits (notebooks 03, 04, 09): Alpaydin, E. and Kaynak, C., *Optical Recognition of Handwritten Digits*, UCI Machine Learning Repository, as bundled with scikit-learn
+- Sample photograph `china.jpg` (notebook 04): danielbuechele, Flickr, CC BY 2.0, as bundled with scikit-learn
+- Pre-trained ResNet-18 weights (notebook 10): ImageNet weights distributed by torchvision; He et al. (2015), Deng et al. (2009)
 
 ## Contact
 

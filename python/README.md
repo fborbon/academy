@@ -75,7 +75,8 @@ one). Notebook 03 runs PySpark, which needs a Java runtime 17 or newer (`apt ins
 
 Most data is generated inside the notebooks or ships with the libraries (scikit-learn, statsmodels,
 lifelines). Notebook 12 uses the UCI Bike Sharing dataset (Fanaee-T and Gama, 2013, licence CC BY 4.0) from
-OpenML (dataset 42712). Notebook 12 also loads Google's TimesFM 3 weights (1.3 GB, from Hugging Face): the
+OpenML (dataset 42712). Notebook 11 uses the scikit-learn digits (Alpaydin and Kaynak, UCI) and notebook 08 the
+Breast Cancer Wisconsin (Diagnostic) data (Street, Wolberg and Mangasarian, 1993, UCI). Notebook 12 also loads Google's TimesFM 3 weights (1.3 GB, from Hugging Face): the
 code is Apache-2.0 but the weights use the *timesfm-non-commercial-license-v1.0*, fine for learning and research,
 not for self-hosted commercial or production use. TimesFM is installed from GitHub at a pinned commit
 (`requirements.txt`), since PyPI does not have version 3 yet. The Kaggle capstone deliberately does **not** use Kaggle's competition files, whose rules
