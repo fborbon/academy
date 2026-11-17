@@ -8,6 +8,8 @@ Free, hands-on courses, listed on the Academy home page at [academy.forwardforec
 | **Redes Neuronales 1001**: the same course in Spanish | [`neural-networks/es/`](neural-networks/es/) | [neural-networks.academy.forwardforecasting.eu/es/](https://neural-networks.academy.forwardforecasting.eu/es/) |
 | **Python 1001**: Intro, Medium and Advanced modules, from data structures to frontier science, forecasting and a Kaggle capstone, in thirteen notebooks | [`python/`](python/) | [python.academy.forwardforecasting.eu](https://python.academy.forwardforecasting.eu/) |
 | **Python 1001 (español)**: the same course in Spanish | [`python/es/`](python/es/) | [python.academy.forwardforecasting.eu/es/](https://python.academy.forwardforecasting.eu/es/) |
+| **RAG Systems 1001**: retrieval-augmented generation you can trust, in eleven notebooks: hybrid retrieval, frameworks, agents, evaluation and a supervisor model | [`rag-systems/`](rag-systems/) | [rag-systems.academy.forwardforecasting.eu](https://rag-systems.academy.forwardforecasting.eu/) |
+| **RAG Systems 1001 (español)**: the same course in Spanish | [`rag-systems/es/`](rag-systems/es/) | [rag-systems.academy.forwardforecasting.eu/es/](https://rag-systems.academy.forwardforecasting.eu/es/) |
 
 ## Running a course
 

@@ -1,0 +1,25 @@
+# RAG Systems 1001: everything the notebooks import. CPU-only; no GPU and no API keys needed.
+#   python3 -m venv .venv && source .venv/bin/activate
+#   pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+# Packages are added here as each module lands (see the syllabus in README.md).
+jupyterlab>=4.2
+ipykernel>=6.29
+nbconvert>=7
+# Modules 01-02: chunking, lexical and semantic retrieval, hybrid fusion, evaluation
+numpy>=2.0
+scikit-learn>=1.5
+matplotlib>=3.9
+sentence-transformers>=3.0   # all-MiniLM-L6-v2 (about 90 MB, downloaded on first run)
+torch>=2.4
+# Modules 03-11: frameworks, routing, agents, SQL, tracing, graphs
+pydantic>=2.7
+langchain>=0.3
+langchain-community>=0.3
+langchain-text-splitters>=0.3
+faiss-cpu>=1.8
+llama-index-core>=0.11
+litellm>=1.50
+langgraph>=0.2
+langfuse>=2.50
+duckdb>=1.0
+networkx>=3.3
