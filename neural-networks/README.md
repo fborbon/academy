@@ -133,7 +133,7 @@ Key AI techniques, and where each one is introduced:
 
 - **Small on purpose.** Every model is sized to train on a laptop CPU in minutes while still showing the real behaviour (non-linear boundaries, learned filters, attention that reorders words, skills that appear at different points in training). The code is the same code you would scale up.
 - **No downloads in notebooks 01 to 09.** Datasets are bundled with scikit-learn or generated from simple rules, so those notebooks work offline and give the same results each run (fixed seeds).
-- **Real, openly licensed data for the capstone.** Notebook 10 uses the GKN Blade Surface Defect Dataset (Qianyu Zhou, Mendeley Data, 2023, doi:10.17632/3bh998k78g.1, CC BY 4.0): 400 real photos of finished blades, 203 good, 48 with nicks, 149 with scratches. It was picked because its licence allows reuse with credit (several better-known inspection datasets are non-commercial or no-derivatives), it is small enough for a CPU, and it has the difficulties of real inspection work: few labelled images, a rare class and tiny defects. The notebook downloads it from the original publication and checks every file's SHA-256 hash.
+- **Real, openly licensed data for the capstone.** Notebook 10 uses the GKN Blade Surface Defect Dataset (Qianyu Zhou, Mendeley Data, 2023, [doi:10.17632/3bh998k78g.1](https://doi.org/10.17632/3bh998k78g.1), CC BY 4.0): 400 real photos of finished blades, 203 good, 48 with nicks, 149 with scratches. It was picked because its licence allows reuse with credit (several better-known inspection datasets are non-commercial or no-derivatives), it is small enough for a CPU, and it has the difficulties of real inspection work: few labelled images, a rare class and tiny defects. The notebook downloads it from the original publication and checks every file's SHA-256 hash.
 - **Baselines included.** The forecaster is compared with a seasonal-naive baseline, the CNN with an MLP, the residual net with a plain net, transfer learning with training from scratch, the triplet embedding with raw pixels. A model is only as good as what it beats.
 - **Honest results.** When a technique does not help on these toy problems (beam search on an undertrained translator, a default-initialised LSTM's memory), the notebook says so and explains why, instead of tuning until the expected story appears.
 - **Synthetic grammars for language.** A word-embedding corpus with built-in gender, royalty, age and geography structure (plus a deliberately planted occupational bias), and an English to Spanish grammar with conjugation, gender agreement and adjective reordering. Both are small enough to learn in a minute and let us check results exactly.
@@ -175,19 +175,19 @@ Everything in the course runs locally on the CPU. There are **no paid APIs**: no
 
 The notebooks are written from the original papers, not from any course material:
 
-- Rumelhart, Hinton & Williams, *Learning representations by back-propagating errors* (1986)
-- Srivastava et al., *Dropout* (2014) · Ioffe & Szegedy, *Batch Normalization* (2015) · Bergstra & Bengio, *Random Search for Hyper-Parameter Optimization* (2012)
-- He et al., *Deep Residual Learning for Image Recognition* (2015) · Howard et al., *MobileNets* (2017)
-- Hochreiter & Schmidhuber, *Long Short-Term Memory* (1997) · Gers, Schmidhuber & Cummins, *Learning to Forget* (2000) · Jozefowicz, Zaremba & Sutskever, *An Empirical Exploration of Recurrent Network Architectures* (2015)
-- Mikolov et al., *Distributed Representations of Words and Phrases* (2013) · Bolukbasi et al., *Man is to Computer Programmer as Woman is to Homemaker?* (2016) · Gonen & Goldberg, *Lipstick on a Pig* (2019)
-- Sutskever, Vinyals & Le, *Sequence to Sequence Learning* (2014) · Bahdanau, Cho & Bengio, *Neural Machine Translation by Jointly Learning to Align and Translate* (2014)
-- Vaswani et al., *Attention Is All You Need* (2017) · Radford et al., *Language Models are Unsupervised Multitask Learners* (2019)
-- Ronneberger, Fischer & Brox, *U-Net* (2015) · Redmon et al., *You Only Look Once* (2015) · Schroff, Kalenichenko & Philbin, *FaceNet* (2015)
-- Selvaraju et al., *Grad-CAM: Visual Explanations from Deep Networks via Gradient-based Localization* (2017) · Yosinski et al., *How transferable are features in deep neural networks?* (2014) · Efron & Tibshirani, *An Introduction to the Bootstrap* (1993)
-- Data for notebook 10: Zhou, Qianyu (2023), *GKN Blade Surface Defect Dataset*, Mendeley Data, V1, doi:10.17632/3bh998k78g.1, CC BY 4.0
-- Handwritten digits (notebooks 03, 04, 09): Alpaydin, E. and Kaynak, C., *Optical Recognition of Handwritten Digits*, UCI Machine Learning Repository, as bundled with scikit-learn
-- Sample photograph `china.jpg` (notebook 04): danielbuechele, Flickr, CC BY 2.0, as bundled with scikit-learn
-- Pre-trained ResNet-18 weights (notebook 10): ImageNet weights distributed by torchvision; He et al. (2015), Deng et al. (2009)
+- Rumelhart, Hinton & Williams, [*Learning representations by back-propagating errors*](https://doi.org/10.1038/323533a0) (1986)
+- Srivastava et al., [*Dropout*](https://jmlr.org/papers/v15/srivastava14a.html) (2014) · Ioffe & Szegedy, [*Batch Normalization*](https://arxiv.org/abs/1502.03167) (2015) · Bergstra & Bengio, [*Random Search for Hyper-Parameter Optimization*](https://jmlr.org/papers/v13/bergstra12a.html) (2012)
+- He et al., [*Deep Residual Learning for Image Recognition*](https://arxiv.org/abs/1512.03385) (2015) · Howard et al., [*MobileNets*](https://arxiv.org/abs/1704.04861) (2017)
+- Hochreiter & Schmidhuber, [*Long Short-Term Memory*](https://doi.org/10.1162/neco.1997.9.8.1735) (1997) · Gers, Schmidhuber & Cummins, [*Learning to Forget*](https://doi.org/10.1162/089976600300015015) (2000) · Jozefowicz, Zaremba & Sutskever, [*An Empirical Exploration of Recurrent Network Architectures*](https://proceedings.mlr.press/v37/jozefowicz15.html) (2015)
+- Mikolov et al., [*Distributed Representations of Words and Phrases*](https://arxiv.org/abs/1310.4546) (2013) · Bolukbasi et al., [*Man is to Computer Programmer as Woman is to Homemaker?*](https://arxiv.org/abs/1607.06520) (2016) · Gonen & Goldberg, [*Lipstick on a Pig*](https://arxiv.org/abs/1903.03862) (2019)
+- Sutskever, Vinyals & Le, [*Sequence to Sequence Learning*](https://arxiv.org/abs/1409.3215) (2014) · Bahdanau, Cho & Bengio, [*Neural Machine Translation by Jointly Learning to Align and Translate*](https://arxiv.org/abs/1409.0473) (2014)
+- Vaswani et al., [*Attention Is All You Need*](https://arxiv.org/abs/1706.03762) (2017) · Radford et al., [*Language Models are Unsupervised Multitask Learners*](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf) (2019)
+- Ronneberger, Fischer & Brox, [*U-Net*](https://arxiv.org/abs/1505.04597) (2015) · Redmon et al., [*You Only Look Once*](https://arxiv.org/abs/1506.02640) (2015) · Schroff, Kalenichenko & Philbin, [*FaceNet*](https://arxiv.org/abs/1503.03832) (2015)
+- Selvaraju et al., [*Grad-CAM: Visual Explanations from Deep Networks via Gradient-based Localization*](https://arxiv.org/abs/1610.02391) (2017) · Yosinski et al., [*How transferable are features in deep neural networks?*](https://arxiv.org/abs/1411.1792) (2014) · Efron & Tibshirani, [*An Introduction to the Bootstrap*](https://doi.org/10.1201/9780429246593) (1993)
+- Data for notebook 10: Zhou, Qianyu (2023), *GKN Blade Surface Defect Dataset*, Mendeley Data, V1, [doi:10.17632/3bh998k78g.1](https://doi.org/10.17632/3bh998k78g.1), CC BY 4.0
+- Handwritten digits (notebooks 03, 04, 09): Alpaydin, E. and Kaynak, C., [*Optical Recognition of Handwritten Digits*](https://archive.ics.uci.edu/dataset/80/optical+recognition+of+handwritten+digits), UCI Machine Learning Repository, as bundled with scikit-learn
+- Sample photograph `china.jpg` (notebook 04): [danielbuechele, Flickr](https://www.flickr.com/photos/danielbuechele/6061409035/), CC BY 2.0, as bundled with scikit-learn
+- Pre-trained ResNet-18 weights (notebook 10): ImageNet weights distributed by torchvision; [He et al. (2015)](https://arxiv.org/abs/1512.03385), [Deng et al. (2009)](https://doi.org/10.1109/CVPR.2009.5206848)
 
 ## Contact
 
