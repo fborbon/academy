@@ -3,6 +3,7 @@ __pycache__/
 .ipynb_checkpoints/
 *.pt
 neural-networks/site/dist/
+neural-networks-1002/site/dist/
 python/site/dist/
 home/dist/
 
@@ -13,6 +14,8 @@ home/
 infra/
 neural-networks/builders/
 neural-networks/site/
+neural-networks-1002/builders/
+neural-networks-1002/site/
 python/builders/
 python/site/
 rag-systems/builders/
