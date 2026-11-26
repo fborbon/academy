@@ -1,0 +1,60 @@
+# Neural Networks 1002. Everything runs on a CPU; no GPU and no API keys are needed.
+# Install with: pip install -r requirements.txt
+
+# Core (all modules)
+numpy>=1.26
+scipy>=1.11
+matplotlib>=3.8
+scikit-learn>=1.4
+pandas>=2.0
+torch>=2.2
+torchvision>=0.17
+pillow>=10.0
+jupyterlab>=4.0
+nbconvert>=7.0
+
+# Pre-trained models and the Hugging Face hub (modules 02, 03, 04, 06, 07, 10, 14, 15).
+# The hub client is pinned below 2 because the notebooks use the 1.x API.
+transformers>=4.40
+huggingface_hub<2
+safetensors>=0.4
+sentencepiece>=0.2
+sacremoses>=0.1
+
+# Module 02: parameter-efficient fine-tuning and ONNX export
+peft>=0.10
+onnx>=1.16
+onnxruntime>=1.18
+onnxscript>=0.1
+
+# Module 05 (optional): the pre-trained text-to-image demo; the notebook skips it if missing
+diffusers>=0.27
+
+# Modules 06 and 07: audio, speech and the speaker models
+soundfile>=0.12
+speechbrain>=1.0
+# torchaudio caveat: torch 2.15 had no matching torchaudio wheel on the CPU index when this course
+# was written. SpeechBrain only needs the module to exist for inference, so module 07 installs a
+# minimal stub when torchaudio is missing or mismatched. On a normal laptop with a matching
+# torch/torchaudio pair, simply `pip install torchaudio` (same version family as torch) and the
+# stub is not used.
+# torchaudio
+
+# Modules 04 and 10 (images and tabular data)
+scikit-image>=0.22
+pyarrow>=15
+
+# Module 10 (optional): SHAP attributions are compared with our own implementation when installed
+shap>=0.45
+
+# Module 12 (optional): the privacy accountant of Opacus is used to cross-check our own;
+# module 13 (optional): cleanlab is compared with our own confident-learning code
+opacus>=1.4
+cleanlab>=2.6
+
+# The bundled wind_cases notebooks of module 16 (they also use pandas, scipy and pyarrow from above)
+xgboost>=2.0
+
+# Module 14 (optional, not needed): the agents run on a simulated model; boto3 is only imported if you
+# choose to point them at a hosted model yourself.
+# boto3
