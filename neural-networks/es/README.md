@@ -21,38 +21,37 @@ La edición en español del curso: doce notebooks de Jupyter que construyen el a
 
 ## Los notebooks
 
-El tiempo en CPU es el tiempo aproximado para ejecutar el notebook completo en la CPU de un portátil de 8 núcleos.
+El tiempo en CPU es el medido al ejecutar el notebook completo en un entorno gratuito de Google Colab (2 CPU virtuales, sin GPU), redondeado; tu portátil puede ser más rápido o más lento.
 
 | # | Notebook | Qué construyes | Ideas clave | Tiempo en CPU |
 |---|---|---|---|---|
-| 01 | [`01_la_neurona_artificial.ipynb`](01_la_neurona_artificial.ipynb) | Una neurona en NumPy, entrenada con la regla del perceptrón y con descenso de gradiente | suma ponderada, funciones de activación, derivadas, gradientes que se desvanecen, ReLU muertas, por qué XOR necesita más de una neurona | < 30 s |
-| 02 | [`02_redes_neuronales_y_retropropagacion.ipynb`](02_redes_neuronales_y_retropropagacion.ipynb) | Un motor de autograd al estilo micrograd y un MLP vectorizado con retropropagación escrita a mano | grafos de cálculo, regla de la cadena, comprobación de gradientes, SGD / Momentum / Adam, inicialización de He, comprobación con PyTorch | ~1 min |
-| 03 | [`03_entrenar_bien_redes_profundas.ipynb`](03_entrenar_bien_redes_profundas.ipynb) | Diagnóstico y corrección del sobreajuste y el subajuste; dropout y batch norm a mano; búsqueda de hiperparámetros | entrenamiento / validación / prueba, sesgo y varianza, curvas de aprendizaje, decaimiento de pesos, parada temprana, calendarios de tasa de aprendizaje, análisis de errores | ~7 min |
-| 04 | [`04_aprendizaje_por_refuerzo.ipynb`](04_aprendizaje_por_refuerzo.ipynb) | Bandidos, Q-learning tabular en un acantilado, REINFORCE y PPO en un cart-pole propio, y un agente que manipula su recompensa | exploración y explotación, Q-learning y SARSA, gradiente de política, líneas base, actor-crítico, el objetivo recortado de PPO, manipulación de la recompensa, anticipo de RLHF | ~10 min |
-| 05 | [`05_redes_convolucionales.ipynb`](05_redes_convolucionales.ipynb) | Una CNN para dígitos manuscritos y después otras más profundas y eficientes | convolución desde cero, pooling, mapas de características, aumento de datos, conexiones residuales, transferencia con pocas etiquetas, convoluciones 1×1 y separables en profundidad | ~3 min |
-| 06 | [`06_redes_recurrentes.ipynb`](06_redes_recurrentes.ipynb) | Pronosticadores RNN y LSTM para una serie de demanda y un pronóstico de un día completo | bucle recurrente, BPTT, compuertas LSTM, variables de calendario, referencia estacional ingenua, gradientes que se desvanecen en el tiempo | ~1 min |
-| 07 | [`07_prevision_de_series_temporales_con_redes_neuronales.ipynb`](07_prevision_de_series_temporales_con_redes_neuronales.ipynb) | Pronosticadores neuronales con demanda real de bicicletas compartidas y caudal de un río simulado, frente a referencias estacionales y XGBoost, y un modelo fundacional preentrenado en modo zero-shot | evaluación de origen móvil, pronóstico directo multihorizonte, GRU / LSTM / Transformer por parches, por qué gana XGBoost en un problema y una red en el otro, TimesFM 3 con covariables, pérdida de cuantiles, guía de decisión | ~35 min la primera vez (unos 25 con los pronósticos del modelo fundacional en caché) |
-| 08 | [`08_embeddings_y_traduccion.ipynb`](08_embeddings_y_traduccion.ipynb) | Embeddings de palabras entrenados desde cero y un codificador-decodificador GRU con atención de inglés a español | skip-gram con muestreo negativo, analogías, medir y neutralizar un sesgo de género sembrado, teacher forcing, atención de Bahdanau, búsqueda en haz | ~4 min |
-| 09 | [`09_transformer.ipynb`](09_transformer.ipynb) | Cada componente del transformer en NumPy y después un transformer completo en PyTorch que aprende a ordenar | codificación posicional, atención de producto escalar, máscaras, atención multicabeza, MLP, flujo residual, LayerNorm, rollout de atención | ~3 min |
-| 10 | [`10_gpt_desde_cero.ipynb`](10_gpt_desde_cero.ipynb) | Un GPT de caracteres preentrenado con un corpus multitarea que se convierte en un pequeño generalista | tokenización BPE, arquitectura solo decodificador, predicción del siguiente token, habilidades emergentes, muestreo, caché KV, ajuste fino, leyes de escalado | ~16 min |
-| 11 | [`11_vision_mas_alla_de_la_clasificacion.ipynb`](11_vision_mas_alla_de_la_clasificacion.ipynb) | Una U-Net de segmentación, un detector al estilo YOLO y un embedding de pérdida triplete | convoluciones transpuestas, conexiones de salto, IoU por clase, supresión de no máximos, precisión y exhaustividad, aprendizaje de métricas | ~6 min |
-| 12 | [`12_proyecto_final_caso_real.ipynb`](12_proyecto_final_caso_real.ipynb) | **Proyecto final con un caso real:** un modelo de inspección visual para fotos reales de álabes (buenos, con muescas, con arañazos), trabajado como una participación en una competición | métrica fijada de antemano, conjunto de prueba bloqueado, validación cruzada, transferencia desde ImageNet, ensamblado y TTA, umbral de rechazo según costes, intervalos bootstrap, Grad-CAM | ~35 min |
+| 01 | [`01_la_neurona_artificial.ipynb`](01_la_neurona_artificial.ipynb) | Una neurona en NumPy, entrenada con la regla del perceptrón y con descenso de gradiente | suma ponderada, funciones de activación, derivadas, gradientes que se desvanecen, ReLU muertas, por qué XOR necesita más de una neurona | ~5 s |
+| 02 | [`02_redes_neuronales_y_retropropagacion.ipynb`](02_redes_neuronales_y_retropropagacion.ipynb) | Un motor de autograd al estilo micrograd y un MLP vectorizado con retropropagación escrita a mano | grafos de cálculo, regla de la cadena, comprobación de gradientes, SGD / Momentum / Adam, inicialización de He, comprobación con PyTorch | ~10 s |
+| 03 | [`03_entrenar_bien_redes_profundas.ipynb`](03_entrenar_bien_redes_profundas.ipynb) | Diagnóstico y corrección del sobreajuste y el subajuste; dropout y batch norm a mano; búsqueda de hiperparámetros | entrenamiento / validación / prueba, sesgo y varianza, curvas de aprendizaje, decaimiento de pesos, parada temprana, calendarios de tasa de aprendizaje, análisis de errores | ~45 s |
+| 04 | [`04_aprendizaje_por_refuerzo.ipynb`](04_aprendizaje_por_refuerzo.ipynb) | Bandidos, Q-learning tabular en un acantilado, REINFORCE y PPO en un cart-pole propio, y un agente que manipula su recompensa | exploración y explotación, Q-learning y SARSA, gradiente de política, líneas base, actor-crítico, el objetivo recortado de PPO, manipulación de la recompensa, anticipo de RLHF | ~40 s |
+| 05 | [`05_redes_convolucionales.ipynb`](05_redes_convolucionales.ipynb) | Una CNN para dígitos manuscritos y después otras más profundas y eficientes | convolución desde cero, pooling, mapas de características, aumento de datos, conexiones residuales, transferencia con pocas etiquetas, convoluciones 1×1 y separables en profundidad | ~1 min |
+| 06 | [`06_redes_recurrentes.ipynb`](06_redes_recurrentes.ipynb) | Pronosticadores RNN y LSTM para una serie de demanda y un pronóstico de un día completo | bucle recurrente, BPTT, compuertas LSTM, variables de calendario, referencia estacional ingenua, gradientes que se desvanecen en el tiempo | ~10 s |
+| 07 | [`07_prevision_de_series_temporales_con_redes_neuronales.ipynb`](07_prevision_de_series_temporales_con_redes_neuronales.ipynb) | Pronosticadores neuronales con demanda real de bicicletas compartidas y caudal de un río simulado, frente a referencias estacionales y XGBoost, y un modelo fundacional preentrenado en modo zero-shot | evaluación de origen móvil, pronóstico directo multihorizonte, GRU / LSTM / Transformer por parches, por qué gana XGBoost en un problema y una red en el otro, TimesFM 3 con covariables, pérdida de cuantiles, guía de decisión | ~3 min (la primera vez; luego los pronósticos del modelo fundacional quedan en caché) |
+| 08 | [`08_embeddings_y_traduccion.ipynb`](08_embeddings_y_traduccion.ipynb) | Embeddings de palabras entrenados desde cero y un codificador-decodificador GRU con atención de inglés a español | skip-gram con muestreo negativo, analogías, medir y neutralizar un sesgo de género sembrado, teacher forcing, atención de Bahdanau, búsqueda en haz | ~1 min |
+| 09 | [`09_transformer.ipynb`](09_transformer.ipynb) | Cada componente del transformer en NumPy y después un transformer completo en PyTorch que aprende a ordenar | codificación posicional, atención de producto escalar, máscaras, atención multicabeza, MLP, flujo residual, LayerNorm, rollout de atención | ~60 s |
+| 10 | [`10_gpt_desde_cero.ipynb`](10_gpt_desde_cero.ipynb) | Un GPT de caracteres preentrenado con un corpus multitarea que se convierte en un pequeño generalista | tokenización BPE, arquitectura solo decodificador, predicción del siguiente token, habilidades emergentes, muestreo, caché KV, ajuste fino, leyes de escalado | ~6 min |
+| 11 | [`11_vision_mas_alla_de_la_clasificacion.ipynb`](11_vision_mas_alla_de_la_clasificacion.ipynb) | Una U-Net de segmentación, un detector al estilo YOLO y un embedding de pérdida triplete | convoluciones transpuestas, conexiones de salto, IoU por clase, supresión de no máximos, precisión y exhaustividad, aprendizaje de métricas | ~2 min |
+| 12 | [`12_proyecto_final_caso_real.ipynb`](12_proyecto_final_caso_real.ipynb) | **Proyecto final con un caso real:** un modelo de inspección visual para fotos reales de álabes (buenos, con muescas, con arañazos), trabajado como una participación en una competición | métrica fijada de antemano, conjunto de prueba bloqueado, validación cruzada, transferencia desde ImageNet, ensamblado y TTA, umbral de rechazo según costes, intervalos bootstrap, Grad-CAM | ~14 min |
 
 Cada notebook acaba con ideas clave y ejercicios, y está guardado **con sus resultados**, así que puedes leerlo en GitHub, en el sitio del curso o en cualquier visor de notebooks sin ejecutar nada.
 
 ## Ruta de aprendizaje
 
 ```
- Parte 1 · Fundamentos        Parte 2 · Arquitecturas clásicas y paradigmas       Parte 3 · Transformers y LLM
- 01 Neurona                   04 Aprendizaje por refuerzo (recompensas)           09 Transformer
+ Parte 1 · Fundamentos        Parte 2 · Arquitecturas clásicas                    Parte 3 · Transformers y LLM
+ 01 Neurona                   05 CNN (imágenes)                                   09 Transformer
    ▼                            ▼                                                   ▼
- 02 Red + retropropagación ─► 05 CNN (imágenes)                           ──►     10 GPT desde cero
+ 02 Red + retropropagación ─► 06 RNN (secuencias)                         ──►     10 GPT desde cero
    ▼                            ▼                                                   ▼
- 03 Entrenar bien             06 RNN (secuencias)                                 11 Segmentación, detección,
-                                ▼                                                    aprendizaje de métricas
-                              07 Series temporales con redes neuronales
-                                ▼
-                              08 NLP clásico: embeddings, seq2seq, atención
+ 03 Entrenar bien             07 Series temporales con redes neuronales           11 Segmentación, detección,
+   ▼                            ▼                                                    aprendizaje de métricas
+ 04 Aprendizaje por refuerzo  08 NLP clásico: embeddings, seq2seq, atención
+    (recompensas)
 
  Parte 4 · Proyecto final
  12 Caso real: inspección visual de defectos en una línea de producción
